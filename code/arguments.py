@@ -96,3 +96,16 @@ class DataTrainingArguments:
     use_faiss: bool = field(
         default=False, metadata={"help": "Whether to build with faiss"}
     )
+
+
+@dataclass
+class WandbArguments:
+    """
+    Arguments for wandb setting
+    """
+    project_name: str = field(
+        default="test",
+    )
+    entity_name: Optional[str] = field(
+        default="sajo-tuna",
+    )
