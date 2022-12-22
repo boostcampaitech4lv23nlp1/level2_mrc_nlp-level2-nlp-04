@@ -26,6 +26,12 @@ class ModelArguments:
             "help": "Pretrained tokenizer name or path if not the same as model_name"
         },
     )
+    out_model_name: str = field(
+        default='nlp04/test',
+        metadata={
+            "help": "Output model name for huggingface"
+        },
+    )
 
 
 @dataclass

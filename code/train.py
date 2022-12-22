@@ -299,6 +299,9 @@ def run_mrc(
     def compute_metrics(p: EvalPrediction):
         return metric.compute(predictions=p.predictions, references=p.label_ids)
 
+    # push_to_hub=True
+    training_args.push_to_hub = True
+
     # Trainer 초기화
     trainer = QuestionAnsweringTrainer(
         model=model,
@@ -342,6 +345,9 @@ def run_mrc(
         trainer.state.save_to_json(
             os.path.join(training_args.output_dir, "trainer_state.json")
         )
+
+        trainer.push_to_hub("nlp04/test")
+
 
     # Evaluation
     if training_args.do_eval:
