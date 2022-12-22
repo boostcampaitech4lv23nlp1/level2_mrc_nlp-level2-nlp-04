@@ -148,7 +148,7 @@ def run_mrc(
         return tokenized_examples
 
     def get_tokenized_examples(tokenized_examples, offset_mapping, sample_mapping, examples):
-        # 데이터셋에 "start position", "enc position" label을 부여합니다.
+        # 데이터셋에 "start position", "end position" label을 부여합니다.
         tokenized_examples["start_positions"] = []
         tokenized_examples["end_positions"] = []
 
