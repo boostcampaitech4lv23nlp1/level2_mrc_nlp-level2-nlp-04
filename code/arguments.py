@@ -78,6 +78,12 @@ class DataTrainingArguments:
         default=True,
         metadata={"help": "Whether to run passage retrieval using sparse embedding."},
     )
+    retrieval_type: str = field(
+        default="SparseRetrieval",
+        metadata={
+            "help": "Retrieval 클래스 이름"
+        },
+    )
     num_clusters: int = field(
         default=64, metadata={"help": "Define how many clusters to use for faiss."}
     )

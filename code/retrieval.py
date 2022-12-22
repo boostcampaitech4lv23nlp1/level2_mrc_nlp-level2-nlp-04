@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import sys
 import time
 from contextlib import contextmanager
 from typing import List, NoReturn, Optional, Tuple, Union
@@ -13,7 +14,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from tqdm.auto import tqdm
 
 
-from retrieval import *
+from retrievals import *
 
 
 @contextmanager
@@ -42,6 +43,7 @@ if __name__ == "__main__":
         "--context_path", metavar="wikipedia_documents", type=str, help=""
     )
     parser.add_argument("--use_faiss", metavar=False, type=bool, help="")
+    parser.add_argument("--retrieval_type", type=str)
 
     args = parser.parse_args()
 
@@ -60,7 +62,7 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=False,)
 
-    retriever = SparseRetrieval(
+    retriever = getattr(sys.modules[__name__], args.retrieval_type)(
         tokenize_fn=tokenizer.tokenize,
         data_path=args.data_path,
         context_path=args.context_path,
@@ -82,6 +84,8 @@ if __name__ == "__main__":
             print("correct retrieval result by faiss", df["correct"].sum() / len(df))
 
     else:
+        retriever.get_embedding()
+
         with timer("bulk query by exhaustive search"):
             df = retriever.retrieve(full_ds)
             df["correct"] = df["original_context"] == df["context"]
