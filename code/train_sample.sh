@@ -10,5 +10,4 @@ python train.py \
 --weight_decay 0.01 \
 --warmup_ratio 0.1 \
 --learning_rate 3e-5 \
---project_name "test" \
---entity_name "ehdvkf02"
+--project_name "test"
