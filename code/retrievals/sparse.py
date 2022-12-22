@@ -63,7 +63,7 @@ class SparseRetrieval:
             tokenizer=tokenize_fn, ngram_range=(1, 2), max_features=50000,
         )
 
-        self.p_embedding = None  # get_sparse_embedding()로 생성합니다
+        self.p_embedding = None  # get_embedding()로 생성합니다
         self.indexer = None  # build_faiss()로 생성합니다.
 
     def get_embedding(self) -> NoReturn:
@@ -158,7 +158,7 @@ class SparseRetrieval:
                 Ground Truth가 없는 Query (test) -> Retrieval한 Passage만 반환합니다.
         """
 
-        assert self.p_embedding is not None, "get_sparse_embedding() 메소드를 먼저 수행해줘야합니다."
+        assert self.p_embedding is not None, "get_embedding() 메소드를 먼저 수행해줘야합니다."
 
         if isinstance(query_or_dataset, str):
             doc_scores, doc_indices = self.get_relevant_doc(query_or_dataset, k=topk)
