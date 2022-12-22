@@ -192,3 +192,6 @@ assets/*
 
 # WandB
 wandb/
+
+models/
+outputs/
