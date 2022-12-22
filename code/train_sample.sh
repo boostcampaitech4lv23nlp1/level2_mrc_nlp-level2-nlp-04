@@ -10,4 +10,7 @@ python train.py \
 --weight_decay 0.01 \
 --warmup_ratio 0.1 \
 --learning_rate 3e-5 \
---project_name "test"
+--project_name "test" \
+--push_to_hub \
+--push_to_hub_organization='nlp04' \
+--push_to_hub_model_id="model_name"

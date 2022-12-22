@@ -347,6 +347,10 @@ def run_mrc(
             os.path.join(training_args.output_dir, "trainer_state.json")
         )
 
+        if training_args.push_to_hub:
+            trainer.push_to_hub()
+
+
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
