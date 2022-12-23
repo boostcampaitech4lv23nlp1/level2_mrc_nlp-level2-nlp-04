@@ -31,7 +31,6 @@ def main():
         (ModelArguments, DataTrainingArguments, TrainingArguments, WandbArguments)
     )
     model_args, data_args, training_args, wandb_args = parser.parse_args_into_dataclasses()
-    print(model_args.model_name_or_path)
 
     wandb.init(project=wandb_args.project_name, entity=wandb_args.entity_name)
     training_args.report_to=["wandb"]
