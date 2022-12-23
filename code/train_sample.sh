@@ -10,6 +10,9 @@ python train.py \
 --weight_decay 0.01 \
 --warmup_ratio 0.1 \
 --learning_rate 3e-5 \
+--eval_steps 500 \
+--logging_steps 500 \
+--evaluation_strategy "steps" \
 --project_name "test" \
 --push_to_hub \
 --push_to_hub_organization='nlp04' \
