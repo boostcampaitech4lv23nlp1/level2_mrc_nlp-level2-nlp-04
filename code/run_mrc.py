@@ -26,12 +26,12 @@ def run_mrc(
     datasets: DatasetDict,
     tokenizer,
     model,
+    func,
     logger
 ) -> NoReturn:
 
     # dataset을 전처리합니다.
     # training과 evaluation에서 사용되는 전처리는 아주 조금 다른 형태를 가집니다.
-    print(training_args.do_train)
     if training_args.do_train:
         column_names = datasets["train"].column_names
     else:
@@ -49,7 +49,6 @@ def run_mrc(
     last_checkpoint, max_seq_length = check_no_error(
         data_args, training_args, datasets, tokenizer
     )
-
     # Train preprocessing / 전처리를 진행합니다.
     def prepare_train_features(examples):
         # truncation과 padding(length가 짧을때만)을 통해 toknization을 진행하며, stride를 이용하여 overflow를 유지합니다.
@@ -71,8 +70,12 @@ def run_mrc(
         # token의 캐릭터 단위 position를 찾을 수 있도록 offset mapping을 사용합니다.
         # start_positions과 end_positions을 찾는데 도움을 줄 수 있습니다.
         offset_mapping = tokenized_examples.pop("offset_mapping")
+        tokenized_examples = get_tokenized_examples(tokenized_examples, offset_mapping, sample_mapping, examples)
 
-        # 데이터셋에 "start position", "enc position" label을 부여합니다.
+        return tokenized_examples
+
+    def get_tokenized_examples(tokenized_examples, offset_mapping, sample_mapping, examples):
+        # 데이터셋에 "start position", "end position" label을 부여합니다.
         tokenized_examples["start_positions"] = []
         tokenized_examples["end_positions"] = []
 
@@ -160,6 +163,15 @@ def run_mrc(
 
         # 길이가 긴 context가 등장할 경우 truncate를 진행해야하므로, 해당 데이터셋을 찾을 수 있도록 mapping 가능한 값이 필요합니다.
         sample_mapping = tokenized_examples.pop("overflow_to_sample_mapping")
+
+
+        
+        if func == "train":
+            # token의 캐릭터 단위 position를 찾을 수 있도록 offset mapping을 사용합니다.
+            # start_positions과 end_positions을 찾는데 도움을 줄 수 있습니다.
+            offset_mapping = tokenized_examples["offset_mapping"]
+            tokenized_examples = get_tokenized_examples(tokenized_examples, offset_mapping, sample_mapping, examples)
+
 
         # evaluation을 위해, prediction을 context의 substring으로 변환해야합니다.
         # corresponding example_id를 유지하고 offset mappings을 저장해야합니다.

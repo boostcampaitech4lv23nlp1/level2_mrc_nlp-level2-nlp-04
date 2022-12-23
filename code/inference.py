@@ -93,7 +93,7 @@ def main():
 
     # eval or predict mrc model
     if training_args.do_eval or training_args.do_predict:
-        run_mrc(data_args, training_args, model_args, datasets, tokenizer, model, logger)
+        run_mrc(data_args, training_args, model_args, datasets, tokenizer, model, "inference", logger)
 
 
 def run_retrieval(
