@@ -16,13 +16,15 @@ import torch.nn.functional as F
 
 from transformers import (
     AutoTokenizer,
-    BertModel, BertPreTrainedModel, RobertaModel, RobertaPreTrainedModel,
+    BertModel, BertPreTrainedModel,
     AdamW, get_linear_schedule_with_warmup,
 )
 
 from typing import List, NoReturn, Optional, Tuple, Union
 from contextlib import contextmanager
 from datasets import Dataset, load_from_disk
+
+# TODO: logging and saving
 
 
 @contextmanager
@@ -33,7 +35,6 @@ def timer(name):
 
 
 class BertEncoder(BertPreTrainedModel):
-
     def __init__(self,
                  config
                  ):
@@ -52,31 +53,6 @@ class BertEncoder(BertPreTrainedModel):
             attention_mask=attention_mask,
             token_type_ids=token_type_ids
         )
-        pooled_output = outputs[1]
-        return pooled_output
-
-
-class RobertaEncoder(RobertaPreTrainedModel):
-
-    def __init__(self,
-                 config
-                 ):
-        super(RobertaEncoder, self).__init__(config)
-
-        self.roberta = RobertaModel(config)
-        self.init_weights()
-
-    def forward(self,
-                input_ids,
-                attention_mask=None,
-                token_type_ids=None
-                ):
-
-        outputs = self.roberta(
-            input_ids,
-            attention_mask=attention_mask
-        )
-
         pooled_output = outputs[1]
         return pooled_output
 
@@ -138,9 +114,9 @@ class DenseRetrieval:
 
         # hugging face encoder
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-        self.p_encoder = RobertaEncoder.from_pretrained(
+        self.p_encoder = BertEncoder.from_pretrained(
             model_name_or_path).to(args.device)
-        self.q_encoder = RobertaEncoder.from_pretrained(
+        self.q_encoder = BertEncoder.from_pretrained(
             model_name_or_path).to(args.device)
 
         self.train_tensor = self.prepare_in_batch_negative(
@@ -200,13 +176,12 @@ class DenseRetrieval:
             -1, num_neg + 1, max_len)
         p_seqs["attention_mask"] = p_seqs["attention_mask"].view(
             -1, num_neg + 1, max_len)
-        # p_seqs["token_type_ids"] = p_seqs["token_type_ids"].view(-1, num_neg + 1, max_len)
+        p_seqs["token_type_ids"] = p_seqs["token_type_ids"].view(
+            -1, num_neg + 1, max_len)
 
         Tensor_dataset = TensorDataset(
-            # p_seqs["token_type_ids"],
-            p_seqs["input_ids"], p_seqs["attention_mask"],
-            # q_seqs["token_type_ids"]
-            q_seqs["input_ids"], q_seqs["attention_mask"],
+            p_seqs["input_ids"], p_seqs["attention_mask"], p_seqs["token_type_ids"],
+            q_seqs["input_ids"], q_seqs["attention_mask"], q_seqs["token_type_ids"]
         )
 
         return Tensor_dataset
@@ -279,27 +254,16 @@ class DenseRetrieval:
                     targets = targets.to(args.device)
 
                     # Bert
-                    # p_inputs = {
-                    #    "input_ids": batch[0].view(train_batch_size * (num_neg + 1), -1).to(args.device),
-                    #    "attention_mask": batch[1].view(train_batch_size * (num_neg + 1), -1).to(args.device),
-                    #    "token_type_ids": batch[2].view(train_batch_size * (num_neg + 1), -1).to(args.device)
-                    # }
-
-                    # q_inputs = {
-                    #    "input_ids": batch[3].to(args.device),
-                    #    "attention_mask": batch[4].to(args.device),
-                    #    "token_type_ids": batch[5].to(args.device)
-                    # }
-
-                    # Roberta
                     p_inputs = {
                         "input_ids": batch[0].view(train_batch_size * (num_neg + 1), -1).to(args.device),
                         "attention_mask": batch[1].view(train_batch_size * (num_neg + 1), -1).to(args.device),
+                        "token_type_ids": batch[2].view(train_batch_size * (num_neg + 1), -1).to(args.device)
                     }
 
                     q_inputs = {
-                        "input_ids": batch[2].to(args.device),
-                        "attention_mask": batch[3].to(args.device),
+                        "input_ids": batch[3].to(args.device),
+                        "attention_mask": batch[4].to(args.device),
+                        "token_type_ids": batch[5].to(args.device)
                     }
 
                     del batch
@@ -350,27 +314,16 @@ class DenseRetrieval:
                         targets = targets.to(args.device)
 
                         # Bert
-                       # p_inputs = {
-                       #     "input_ids": batch[0].view(validation_batch_size * (num_neg + 1), -1).to(args.device),
-                       #     "attention_mask": batch[1].view(validation_batch_size * (num_neg + 1), -1).to(args.device),
-                       #     "token_type_ids": batch[2].view(validation_batch_size * (num_neg + 1), -1).to(args.device)
-                       # }
-
-                       # q_inputs = {
-                       #     "input_ids": batch[3].to(args.device),
-                       #     "attention_mask": batch[4].to(args.device),
-                       #     "token_type_ids": batch[5].to(args.device)
-                       # }
-
-                        # Roberta
                         p_inputs = {
                             "input_ids": batch[0].view(validation_batch_size * (num_neg + 1), -1).to(args.device),
-                            "attention_mask": batch[1].view(validation_batch_size * (num_neg + 1), -1).to(args.device)
+                            "attention_mask": batch[1].view(validation_batch_size * (num_neg + 1), -1).to(args.device),
+                            "token_type_ids": batch[2].view(validation_batch_size * (num_neg + 1), -1).to(args.device)
                         }
 
                         q_inputs = {
-                            "input_ids": batch[2].to(args.device),
-                            "attention_mask": batch[3].to(args.device)
+                            "input_ids": batch[3].to(args.device),
+                            "attention_mask": batch[4].to(args.device),
+                            "token_type_ids": batch[5].to(args.device)
                         }
 
                         del batch
