@@ -365,6 +365,11 @@ class DenseRetrieval:
         pickle_name = f"dense_embedding.bin"
         emd_path = os.path.join(self.data_path, pickle_name)
         if os.path.isfile(emd_path):
+            
+            # Encoder Model load, **공유했을 때 변수명 변경 필요!**
+            self.p_encoder.from_pretrained(args.output_dir+"/p_encoder")
+            self.q_encoder.from_pretrained(args.output_dir+"/q_encoder")
+            
             with open(emd_path, "rb") as file:
                 self.p_embedding = pickle.load(file)
             print("Embedding pickle load")
@@ -373,6 +378,10 @@ class DenseRetrieval:
 
             self.train()
 
+            # Encoder Model Save
+            self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
+            self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
+            
             with torch.no_grad():
                 self.p_encoder.eval()
                 p_embs = []
