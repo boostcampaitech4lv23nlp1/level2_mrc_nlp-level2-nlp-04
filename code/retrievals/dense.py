@@ -24,7 +24,7 @@ from typing import List, NoReturn, Optional, Tuple, Union
 from contextlib import contextmanager
 from datasets import Dataset, load_from_disk
 
-# TODO: logging and saving
+# TODO: wandb logging and huggingface hub porting
 
 
 @contextmanager
@@ -69,23 +69,24 @@ class DenseRetrieval:
     ) -> NoReturn:
         """
         Arguments:
-            tokenize_fn:
-                기본 text를 tokenize해주는 함수입니다.
-                아래와 같은 함수들을 사용할 수 있습니다.
-                - lambda x: x.split(' ')
-                - Huggingface Tokenizer
-                - konlpy.tag의 Mecab
-
+            args:
+                TrainingArguments 형태의 argument입니다.
+            model_name_or_path:
+                pre_trained model 경로입니다
+            num_neg:
+                negative passage의 수입니다
             data_path:
                 데이터가 보관되어 있는 경로입니다.
-
             context_path:
                 Passage들이 묶여있는 파일명입니다.
 
             data_path/context_path가 존재해야합니다.
 
+            train_path:
+                mrc의 train 데이터 셋이 있는 경로입니다. 모델 훈련시 필요합니다
+                
         Summary:
-            Passage 파일을 불러오고 TfidfVectorizer를 선언하는 기능을 합니다.
+            파일을 불러오고 Encoder 선언 및 in batch negative를 수행합니다.
         """
 
         self.data_path = data_path
@@ -131,12 +132,11 @@ class DenseRetrieval:
                                   contexts
                                   ):
         """
-        Args
-        dataset : each_dataset
-        contexts : each_total_contexts
-        ----
-        dataset
-            in-batch negative를 추가
+        Arguments:
+            dataset : each_dataset
+            contexts : each_total_contexts
+        Summary:
+            self.num_neg만큼 in-batch negative를 수행합니다
         """
 
         # num neg, tokenizer, args 정의
@@ -188,8 +188,9 @@ class DenseRetrieval:
 
     def train(self):
         """
-        do_train.
-        encoder들과 dataloader가 속성으로 저장되어있는 점에 유의해주세요.
+        Summary:
+            실제 train이 수행되는 함수입니다.
+            klue/bert-base 기준으로 작성되었습니다.
         """
 
         args = self.args
