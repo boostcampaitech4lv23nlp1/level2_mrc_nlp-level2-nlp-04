@@ -1,28 +1,28 @@
 import os
 import json
 import pickle
-
 import time
+
 import numpy as np
 import pandas as pd
-from tqdm import trange
-from tqdm.auto import tqdm
-from pprint import pprint
 
 import torch
-
-from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.functional as F
+from torch.utils.data import DataLoader, TensorDataset
 
 from transformers import (
     AutoTokenizer,
-    BertModel, BertPreTrainedModel,
-    AdamW, get_linear_schedule_with_warmup,
+    BertModel,
+    BertPreTrainedModel,
+    AdamW,
+    get_linear_schedule_with_warmup
 )
-
-from typing import List, NoReturn, Optional, Tuple, Union
-from contextlib import contextmanager
 from datasets import Dataset, load_from_disk
+
+from tqdm import trange
+from tqdm.auto import tqdm
+from typing import List, Optional, Tuple, Union
+from contextlib import contextmanager
 
 # TODO: wandb logging and huggingface hub porting
 
@@ -66,7 +66,7 @@ class DenseRetrieval:
         data_path: Optional[str] = "../data/",
         context_path: Optional[str] = "wikipedia_documents.json",
         train_path="train_dataset"
-    ) -> NoReturn:
+    ) -> None:
         """
         Arguments:
             args:
@@ -112,6 +112,10 @@ class DenseRetrieval:
             f"Lengths of Validation unique contexts : {len(self.validation_contexts)}")
 
         self.num_neg = num_neg
+
+        # p_embedding의 저장 경로 지정
+        pickle_name = f"dense_embedding.bin"
+        self.emd_path = os.path.join(self.data_path, pickle_name)
 
         # hugging face encoder
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
@@ -195,6 +199,10 @@ class DenseRetrieval:
 
         args = self.args
         num_neg = self.num_neg
+
+        # 기존의 p_embbeding이 있다면 삭제합니다
+        if os.path.isfile(self.emd_path):
+            os.remove(self.emd_path)
 
         train_batch_size = args.per_device_train_batch_size
         validation_batch_size = args.per_device_eval_batch_size
@@ -351,6 +359,10 @@ class DenseRetrieval:
                         losses.append(loss.item())
                 print("validation loss= ", np.array(losses).mean())
 
+            # Encoder Model Save
+            self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
+            self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
+
     def get_embedding(self):
         """
         Summary:
@@ -363,14 +375,16 @@ class DenseRetrieval:
 
         # Pickle을 저장합니다.
         pickle_name = f"dense_embedding.bin"
-        emd_path = os.path.join(self.data_path, pickle_name)
-        if os.path.isfile(emd_path):
-            
+        self.emd_path = os.path.join(self.data_path, pickle_name)
+        if os.path.isfile(self.emd_path):
+
             # Encoder Model load, **공유했을 때 변수명 변경 필요!**
-            self.p_encoder.from_pretrained(args.output_dir+"/p_encoder")
-            self.q_encoder.from_pretrained(args.output_dir+"/q_encoder")
-            
-            with open(emd_path, "rb") as file:
+            self.p_encoder = BertEncoder.from_pretrained(
+                args.output_dir+"/p_encoder").to(args.device)
+            self.q_encoder = BertEncoder.from_pretrained(
+                args.output_dir+"/q_encoder").to(args.device)
+
+            with open(self.emd_path, "rb") as file:
                 self.p_embedding = pickle.load(file)
             print("Embedding pickle load")
         else:
@@ -378,10 +392,6 @@ class DenseRetrieval:
 
             self.train()
 
-            # Encoder Model Save
-            self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
-            self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
-            
             with torch.no_grad():
                 self.p_encoder.eval()
                 p_embs = []
@@ -395,7 +405,7 @@ class DenseRetrieval:
             self.p_embedding = torch.Tensor(
                 p_embs).squeeze()  # (num_passage, emb_dim)
 
-            with open(emd_path, "wb") as file:
+            with open(self.emd_path, "wb") as file:
                 pickle.dump(self.p_embedding, file)
             print("Embedding pickle saved.")
 
