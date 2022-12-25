@@ -90,6 +90,7 @@ class DenseRetrieval:
         """
 
         self.data_path = data_path
+        self.model_name_or_path = model_name_or_path
         with open(os.path.join(self.data_path, context_path), "r", encoding="utf-8") as f:
             self.wiki = json.load(f)
         self.contexts = list(dict.fromkeys(
@@ -119,10 +120,10 @@ class DenseRetrieval:
 
         # hugging face encoder
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-        self.p_encoder = BertEncoder.from_pretrained(
-            model_name_or_path).to(args.device)
-        self.q_encoder = BertEncoder.from_pretrained(
-            model_name_or_path).to(args.device)
+
+        # gpu 메모리를 효율적으로 사용하기 위해 train 또는 retriever 단계에서 선언합니다
+        self.p_encoder = None
+        self.q_encoder = None
 
         self.train_tensor = self.prepare_in_batch_negative(
             dataset=self.train_dataset, contexts=self.train_contexts)
@@ -204,6 +205,12 @@ class DenseRetrieval:
         if os.path.isfile(self.emd_path):
             os.remove(self.emd_path)
 
+        # 훈련시킬 사전학습된 encoder load
+        self.p_encoder = BertEncoder.from_pretrained(
+            self.model_name_or_path).to(args.device)
+        self.q_encoder = BertEncoder.from_pretrained(
+            self.model_name_or_path).to(args.device)
+
         train_batch_size = args.per_device_train_batch_size
         validation_batch_size = args.per_device_eval_batch_size
 
@@ -251,7 +258,6 @@ class DenseRetrieval:
 
         train_iterator = trange(int(args.num_train_epochs), desc="Epoch")
         for _ in train_iterator:
-            # epoch_iterator = tqdm(train_dataloader, desc="Iteration")
             with tqdm(train_dataloader, unit="batch") as tepoch:
                 for batch in tepoch:
 
@@ -373,24 +379,18 @@ class DenseRetrieval:
 
         args = self.args
 
-        # Pickle을 저장합니다.
-        pickle_name = f"dense_embedding.bin"
-        self.emd_path = os.path.join(self.data_path, pickle_name)
+        # 만약 p_embedding Pickle 파일이 없다면 이를 저장합니다.
+        # train 함수가 한번이라도 실행되어 p_encoder, q_encoder가 존재하는 상태로 가정합니다
         if os.path.isfile(self.emd_path):
-
-            # Encoder Model load, **공유했을 때 변수명 변경 필요!**
-            self.p_encoder = BertEncoder.from_pretrained(
-                args.output_dir+"/p_encoder").to(args.device)
-            self.q_encoder = BertEncoder.from_pretrained(
-                args.output_dir+"/q_encoder").to(args.device)
-
             with open(self.emd_path, "rb") as file:
                 self.p_embedding = pickle.load(file)
             print("Embedding pickle load")
+
         else:
             print("Build passage embedding")
 
-            self.train()
+            self.p_encoder = BertEncoder.from_pretrained(
+                args.output_dir+"/p_encoder").to(args.device)  # 파일이 없다면 p_encoder를 load 합니다
 
             with torch.no_grad():
                 self.p_encoder.eval()
@@ -511,8 +511,12 @@ class DenseRetrieval:
                 Ground Truth가 있는 Query (train/valid) -> 기존 Ground Truth Passage를 같이 반환합니다.
                 Ground Truth가 없는 Query (test) -> Retrieval한 Passage만 반환합니다.
         """
+        args = self.args
 
         assert self.p_embedding is not None, "get_embedding() 메소드를 먼저 수행해줘야합니다."
+
+        self.q_encoder = BertEncoder.from_pretrained(
+            args.output_dir+"/q_encoder").to(args.device)  # q_encoder를 불러옵니다
 
         if isinstance(query_or_dataset, str):
             doc_scores, doc_indices = self.get_relevant_doc(
@@ -534,7 +538,7 @@ class DenseRetrieval:
                     query_or_dataset["question"], k=topk
                 )
             for idx, example in enumerate(
-                tqdm(query_or_dataset, desc="Sparse retrieval: ")
+                tqdm(query_or_dataset, desc="Dense retrieval: ")
             ):
                 tmp = {
                     # Query와 해당 id를 반환합니다.
