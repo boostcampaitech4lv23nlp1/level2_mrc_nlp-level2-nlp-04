@@ -1,18 +1,5 @@
-import logging
-import os
-import sys
-from typing import NoReturn
-import wandb
-
 from arguments import RetrievalArguments, WandbArguments
-from datasets import DatasetDict, load_from_disk, load_metric
-from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
-    AutoConfig,
-    AutoModelForQuestionAnswering,
-    AutoTokenizer,
-    DataCollatorWithPadding,
-    EvalPrediction,
     HfArgumentParser,
     TrainingArguments,
     set_seed,
@@ -29,10 +16,7 @@ def main():
     )
     retrieval_args, wandb_args = parser.parse_args_into_dataclasses()
 
-    # 모델을 초기화하기 전에 난수를 고정합니다.
-    
-
-    # 나머지 인자들은 TrainingArguments의 기본 인자를 사용하기 위해서 이렇게 선언해줍니다.
+    # 설정하지 않은 나머지 인자들은 TrainingArguments의 기본 인자를 사용하기 위해서 이렇게 선언해줍니다.
     retrieval_training_args = TrainingArguments(
         output_dir=retrieval_args.retrieval_output_dir,
         learning_rate=retrieval_args.retrieval_learning_rate,
@@ -43,8 +27,8 @@ def main():
         weight_decay=retrieval_args.retrieval_weight_decay,
         warmup_steps=retrieval_args.retrieval_warmup_steps
     )
-    
-    # 시드를 고정시킴니다
+
+    # 모델을 초기화하기 전에 난수를 고정합니다.
     set_seed(retrieval_training_args.seed)
 
     retriever = DenseRetrieval(
@@ -55,6 +39,7 @@ def main():
     retriever.train(wandb_args)
     retriever.get_embedding()
 
+    # test query
     query = "미국의 대통령은?"
     retriever.retrieve(query_or_dataset=query, topk=5)
 
