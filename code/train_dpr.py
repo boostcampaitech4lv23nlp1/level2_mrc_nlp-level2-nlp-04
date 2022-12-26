@@ -4,7 +4,7 @@ import sys
 from typing import NoReturn
 import wandb
 
-from arguments import DataTrainingArguments, ModelArguments, WandbArguments
+from arguments import RetrievalArguments, WandbArguments
 from datasets import DatasetDict, load_from_disk, load_metric
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
@@ -24,49 +24,40 @@ def main():
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
 
-    # parser = HfArgumentParser(
-    #     (ModelArguments, DataTrainingArguments, TrainingArguments, WandbArguments)
-    # )
-    # model_args, data_args, training_args, wandb_args = parser.parse_args_into_dataclasses()
-
-    # [참고] argument를 manual하게 수정하고 싶은 경우에 아래와 같은 방식을 사용할 수 있습니다
-    # training_args.per_device_train_batch_size = 4
-    # print(training_args.per_device_train_batch_size)
-
-    # print(f"model is from {model_args.model_name_or_path}")
-    # print(f"data is from {data_args.dataset_name}")
-    
+    parser = HfArgumentParser(
+        (RetrievalArguments, WandbArguments)
+    )
+    retrieval_args, wandb_args = parser.parse_args_into_dataclasses()
 
     # 모델을 초기화하기 전에 난수를 고정합니다.
-    set_seed(42)
-    wandb_args =WandbArguments()
-    wandb_args.entity_name = "sajo-tuna"
-    wandb_args.project_name = "DPRTest"
     
-    args = TrainingArguments(
-        output_dir="dense_retireval",
-        evaluation_strategy="epoch",
-        learning_rate=2e-5,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
-        num_train_epochs=3,
-        weight_decay=0.01
-    )
 
-    model_name_or_path = "klue/bert-base"
+    # 나머지 인자들은 TrainingArguments의 기본 인자를 사용하기 위해서 이렇게 선언해줍니다.
+    retrieval_training_args = TrainingArguments(
+        output_dir=retrieval_args.retrieval_output_dir,
+        learning_rate=retrieval_args.retrieval_learning_rate,
+        per_device_train_batch_size=retrieval_args.retrieval_per_device_train_batch_size,
+        per_device_eval_batch_size=retrieval_args.retrieval_per_device_eval_batch_size,
+        gradient_accumulation_steps=retrieval_args.retrieval_gradient_accumulation_steps,
+        num_train_epochs=retrieval_args.retrieval_num_train_epochs,
+        weight_decay=retrieval_args.retrieval_weight_decay,
+        warmup_steps=retrieval_args.retrieval_warmup_steps
+    )
+    
+    # 시드를 고정시킴니다
+    set_seed(retrieval_training_args.seed)
 
     retriever = DenseRetrieval(
-        args=args,
-        model_name_or_path = model_name_or_path,
-        num_neg=2,
-        
-    )  
-    
+        training_args=retrieval_training_args,
+        retrieval_args=retrieval_args
+    )
+
     retriever.train(wandb_args)
     retriever.get_embedding()
-    
+
     query = "미국의 대통령은?"
     retriever.retrieve(query_or_dataset=query, topk=5)
+
 
 if __name__ == "__main__":
     main()
