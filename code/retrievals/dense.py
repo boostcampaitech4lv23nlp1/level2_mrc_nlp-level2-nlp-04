@@ -2,6 +2,7 @@ import os
 import json
 import pickle
 import time
+import wandb
 
 import numpy as np
 import pandas as pd
@@ -191,16 +192,18 @@ class DenseRetrieval:
 
         return Tensor_dataset
 
-    def train(self):
+    def train(self, wandb_args):
         """
         Summary:
             실제 train이 수행되는 함수입니다.
             klue/bert-base 기준으로 작성되었습니다.
         """
-
+    
         args = self.args
         num_neg = self.num_neg
 
+        wandb.init(project=wandb_args.project_name, entity=wandb_args.entity_name)
+        
         # 기존의 p_embbeding이 있다면 삭제합니다
         if os.path.isfile(self.emd_path):
             os.remove(self.emd_path)
@@ -290,8 +293,7 @@ class DenseRetrieval:
                     q_outputs = self.q_encoder(**q_inputs)
 
                     # Calculate similarity score & loss
-                    p_outputs = p_outputs.view(
-                        train_batch_size, num_neg + 1, -1)
+                    p_outputs = p_outputs.view(train_batch_size, num_neg + 1, -1)
                     q_outputs = q_outputs.view(train_batch_size, 1, -1)
 
                     # (batch_size, num_neg + 1)
@@ -302,7 +304,7 @@ class DenseRetrieval:
 
                     loss = F.nll_loss(sim_scores, targets)
                     tepoch.set_postfix(loss=f" {str(loss.item())}")
-                    # wandb.log({"train loss":loss})
+                    wandb.log({"train loss":loss})
 
                     loss.backward()
                     optimizer.step()
@@ -364,10 +366,13 @@ class DenseRetrieval:
                         loss = F.nll_loss(sim_scores, targets)
                         losses.append(loss.item())
                 print("validation loss= ", np.array(losses).mean())
+                wandb.log({"validation loss":np.array(losses).mean()})
 
             # Encoder Model Save
             self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
             self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
+            
+            wandb.finish()
 
     def get_embedding(self):
         """
