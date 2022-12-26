@@ -288,10 +288,9 @@ class DenseRetrieval:
                     del batch
 
                     torch.cuda.empty_cache()
-                    # (batch_size * (num_neg + 1), emb_dim)
-                    p_outputs = self.p_encoder(**p_inputs)
-                    # (batch_size, emb_dim)
-                    q_outputs = self.q_encoder(**q_inputs)
+                    
+                    p_outputs = self.p_encoder(**p_inputs)  # (batch_size * (num_neg + 1), emb_dim)
+                    q_outputs = self.q_encoder(**q_inputs)  # (batch_size, emb_dim)
 
                     # Calculate similarity score & loss
                     p_outputs = p_outputs.view(train_batch_size, num_neg + 1, -1)
@@ -371,7 +370,7 @@ class DenseRetrieval:
 
             queries = self.validation_dataset["question"]
             ground_truth = self.validation_dataset["context"]
-            topk = 20  # 20을 기준으로 accuracy를 계산합니다
+            
 
             with torch.no_grad():
                 self.p_encoder.eval()
@@ -394,22 +393,25 @@ class DenseRetrieval:
                     q_emb, torch.transpose(p_embs, 0, 1))
                 rank = torch.argsort(dot_prod_scores, dim=1,
                                      descending=True).squeeze()
-
-            score = 0
+            
+            validation_log_dict = dict()
+            validation_log_dict["validation loss"] = np.array(losses).mean()
+            
+            topks = [10,20,50,100]  # 10,20,50,100을 기준으로 accuracy를 계산합니다
             # query 및 ground truth를 받아와야함
-            #
-            for idx, query in enumerate(queries):
-                r = rank[idx]
-                r_ = r[:topk+1]
-                passages = [self.validation_contexts[i] for i in r_]
-                if ground_truth[idx] in passages:
-                    score += 1
+            for topk in topks:
+                score = 0
+                for idx, query in enumerate(queries):
+                    r = rank[idx]
+                    r_ = r[:topk+1]
+                    passages = [self.validation_contexts[i] for i in r_]
+                    if ground_truth[idx] in passages:
+                        score += 1
 
-            accuracy = score / len(queries)
-            print("validation loss= %f     validation acc= %f" %
-                  (np.array(losses).mean(), accuracy))
-            wandb.log({"validation loss": np.array(
-                losses).mean(), "validation acc": accuracy})
+                accuracy = score / len(queries)
+                validation_log_dict[f"validation acc_topk_{topk}"] = accuracy
+            
+            wandb.log(validation_log_dict)
 
         # Encoder Model Save
         self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
