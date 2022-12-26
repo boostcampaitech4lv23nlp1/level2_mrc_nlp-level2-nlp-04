@@ -124,11 +124,18 @@ class RetrievalArguments:
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
         },
     )
+
     retrieval_dataset_name: Optional[str] = field(
         default="../data/train_dataset",
         metadata={"help": "The name of the dataset to use."},
     )
 
+    num_neg: int = field(
+        default=2
+    )
+
+    # TrainingArgument와 관련있는 부분입니다
+    # --------------------------------------
     retrieval_output_dir: Optional[str] = field(
         default="dense_retireval",
     )
@@ -136,33 +143,28 @@ class RetrievalArguments:
     retrieval_learning_rate: float = field(
         default=2e-5
     )
-    
+
     retrieval_per_device_train_batch_size: int = field(
         default=8
     )
-    
+
     retrieval_per_device_eval_batch_size: int = field(
         default=8
     )
-    
+
     retrieval_gradient_accumulation_steps: int = field(
         default=16
     )
-    
+
     retrieval_num_train_epochs: int = field(
         default=3
     )
-    
+
     retrieval_weight_decay: float = field(
         default=0.01
     )
-    
+
     retrieval_warmup_steps: float = field(
         default=0
     )
-    
-    num_neg: int = field(
-        default=2
-    )
-    
-    
+    # --------------------------------------
