@@ -100,7 +100,7 @@ class DenseRetrieval:
         self.args = args
         self.dataset = load_from_disk(os.path.join(self.data_path, train_path))
 
-        self.train_dataset = self.dataset["train"]
+        self.train_dataset = self.dataset["train"]  # train인지 확인!
         self.validation_dataset = self.dataset["validation"]
 
         # 훈련시 필요한 contexts
@@ -198,12 +198,13 @@ class DenseRetrieval:
             실제 train이 수행되는 함수입니다.
             klue/bert-base 기준으로 작성되었습니다.
         """
-    
+
         args = self.args
         num_neg = self.num_neg
 
-        wandb.init(project=wandb_args.project_name, entity=wandb_args.entity_name)
-        
+        wandb.init(project=wandb_args.project_name,
+                   entity=wandb_args.entity_name)
+
         # 기존의 p_embbeding이 있다면 삭제합니다
         if os.path.isfile(self.emd_path):
             os.remove(self.emd_path)
@@ -304,7 +305,7 @@ class DenseRetrieval:
 
                     loss = F.nll_loss(sim_scores, targets)
                     tepoch.set_postfix(loss=f" {str(loss.item())}")
-                    wandb.log({"train loss":loss})
+                    wandb.log({"train loss": loss})
 
                     loss.backward()
                     optimizer.step()
@@ -365,14 +366,56 @@ class DenseRetrieval:
 
                         loss = F.nll_loss(sim_scores, targets)
                         losses.append(loss.item())
-                print("validation loss= ", np.array(losses).mean())
-                wandb.log({"validation loss":np.array(losses).mean()})
 
-            # Encoder Model Save
-            self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
-            self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
-            
-            wandb.finish()
+            # accuracy를 계산합니다
+
+            queries = self.validation_dataset["question"]
+            ground_truth = self.validation_dataset["context"]
+            topk = 20  # 20을 기준으로 accuracy를 계산합니다
+
+            with torch.no_grad():
+                self.p_encoder.eval()
+                self.q_encoder.eval()
+
+                q_seqs_val = self.tokenizer(queries, padding="max_length", truncation=True, return_tensors="pt").to(
+                    args.device)  # (num_query, emb_dim)
+                q_emb = self.q_encoder(**q_seqs_val).to("cpu")
+
+                p_embs = []
+                for p in self.validation_contexts:
+                    p = self.tokenizer(
+                        p, padding="max_length", truncation=True, return_tensors="pt").to(args.device)
+                    p_emb = self.p_encoder(**p).to("cpu").numpy()
+                    p_embs.append(p_emb)
+
+                # (num_passage, emb_dim)
+                p_embs = torch.Tensor(p_embs).squeeze()
+                dot_prod_scores = torch.matmul(
+                    q_emb, torch.transpose(p_embs, 0, 1))
+                rank = torch.argsort(dot_prod_scores, dim=1,
+                                     descending=True).squeeze()
+
+            score = 0
+            # query 및 ground truth를 받아와야함
+            #
+            for idx, query in enumerate(queries):
+                r = rank[idx]
+                r_ = r[:topk+1]
+                passages = [self.validation_contexts[i] for i in r_]
+                if ground_truth[idx] in passages:
+                    score += 1
+
+            accuracy = score / len(queries)
+            print("validation loss= %f     validation acc= %f" %
+                  (np.array(losses).mean(), accuracy))
+            wandb.log({"validation loss": np.array(
+                losses).mean(), "validation acc": accuracy})
+
+        # Encoder Model Save
+        self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
+        self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
+
+        wandb.finish()
 
     def get_embedding(self):
         """
