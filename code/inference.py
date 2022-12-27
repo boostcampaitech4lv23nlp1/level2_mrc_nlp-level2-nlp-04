@@ -78,17 +78,19 @@ def main():
     )
 
     # True일 경우 : run passage retrieval
-    # if data_args.eval_retrieval:
-    #     datasets = run_sparseretrieval(
-    #         datasets, training_args, data_args, retrieval_args
-    #     )
-    
     if data_args.eval_retrieval:
-        datasets = run_denseretrieval(
-            datasets, training_args, data_args, retrieval_args
-        )
-
-
+        if retrieval_args.retrieval_type == "sparse":
+            datasets = run_sparseretrieval(
+                datasets, training_args, data_args, retrieval_args
+            )
+        elif retrieval_args.retrieval_type == "dense":
+            datasets = run_denseretrieval(
+                datasets, training_args, data_args, retrieval_args
+            )
+        else:
+            assert retrieval_args.retrieval_type is None, "retrieval 타입 확인"
+            exit(1)
+    
     # eval or predict mrc model
     if training_args.do_eval or training_args.do_predict:
         run_mrc(data_args, training_args, model_args, datasets, tokenizer, model, "inference", logger)

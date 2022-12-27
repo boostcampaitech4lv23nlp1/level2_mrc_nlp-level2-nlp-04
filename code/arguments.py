@@ -79,7 +79,7 @@ class DataTrainingArguments:
         metadata={
             "help": "Whether to run passage retrieval using sparse embedding."},
     )
-    retrieval_type: str = field(
+    retrieval_class: str = field(
         default="SparseRetrieval",
         metadata={
             "help": "Retrieval 클래스 이름"
@@ -133,11 +133,16 @@ class RetrievalArguments:
     num_neg: int = field(
         default=2
     )
-
+    retrieval_type: str = field(
+        default=None,
+        metadata={
+            "help": "retrieval type"
+        },
+    )
     # TrainingArgument와 관련있는 부분입니다
     # --------------------------------------
     retrieval_output_dir: Optional[str] = field(
-        default="dense_retireval",
+        default="dense_retrieval",
     )
 
     retrieval_learning_rate: float = field(
