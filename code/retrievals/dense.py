@@ -198,6 +198,7 @@ class DenseRetrieval:
 
         args = self.training_args
         num_neg = self.num_neg
+        high_acc = -1  # acc 계산
 
         wandb.init(project=wandb_args.project_name,
                    entity=wandb_args.entity_name)
@@ -411,9 +412,11 @@ class DenseRetrieval:
 
             wandb.log(validation_log_dict)
 
-        # Encoder Model Save
-        self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
-        self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
+            if validation_log_dict["validation acc_topk_10"]<high_acc:
+                # Encoder Model Save
+                self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
+                self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
+                high_acc = validation_log_dict["validation acc_topk_10"]
 
         wandb.finish()
 
