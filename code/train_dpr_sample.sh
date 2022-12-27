@@ -1,6 +1,6 @@
 python train_dpr.py \
 --project_name "test" \
---entity_name "JunHyung1206" \
+--entity_name "sajo-tuna" \
 --retrieval_model_name_or_path "klue/bert-base" \
 --retrieval_dataset_name "../data/train_dataset" \
 --num_neg 2 \
@@ -8,7 +8,6 @@ python train_dpr.py \
 --retrieval_learning_rate 2e-5 \
 --retrieval_per_device_train_batch_size 8 \
 --retrieval_per_device_eval_batch_size 8 \
---retrieval_gradient_accumulation_steps 16 \
 --retrieval_num_train_epochs 3 \
 --retrieval_weight_decay 0.01 \
 --retrieval_warmup_steps 0 \

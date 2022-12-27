@@ -22,7 +22,6 @@ def main():
         learning_rate=retrieval_args.retrieval_learning_rate,
         per_device_train_batch_size=retrieval_args.retrieval_per_device_train_batch_size,
         per_device_eval_batch_size=retrieval_args.retrieval_per_device_eval_batch_size,
-        gradient_accumulation_steps=retrieval_args.retrieval_gradient_accumulation_steps,
         num_train_epochs=retrieval_args.retrieval_num_train_epochs,
         weight_decay=retrieval_args.retrieval_weight_decay,
         warmup_steps=retrieval_args.retrieval_warmup_steps

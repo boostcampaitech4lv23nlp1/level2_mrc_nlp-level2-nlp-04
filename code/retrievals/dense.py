@@ -259,7 +259,7 @@ class DenseRetrieval:
 
         for _ in range(int(args.num_train_epochs)):
             with tqdm(train_dataloader, unit="batch") as tepoch:
-                for i, batch in enumerate(tepoch):
+                for batch in tepoch:
 
                     self.p_encoder.train()
                     self.q_encoder.train()
@@ -282,6 +282,7 @@ class DenseRetrieval:
                     }
 
                     del batch
+
                     torch.cuda.empty_cache()
 
                     # (batch_size * (num_neg + 1), emb_dim)
@@ -301,23 +302,20 @@ class DenseRetrieval:
                     sim_scores = F.log_softmax(sim_scores, dim=1)
 
                     loss = F.nll_loss(sim_scores, targets)
-
-                    loss = loss / args.gradient_accumulation_steps
-                    loss.backward()
-
                     tepoch.set_postfix(loss=f" {str(loss.item())}")
                     wandb.log({"train loss": loss})
 
-                    if (i+1) % args.gradient_accumulation_steps:
-                        optimizer.step()
-                        scheduler.step()
-                        self.q_encoder.zero_grad()
-                        self.p_encoder.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    scheduler.step()
 
-                    del p_inputs, q_inputs
-                    torch.cuda.empty_cache()
+                    self.q_encoder.zero_grad()
+                    self.p_encoder.zero_grad()
 
                     global_step += 1
+
+                    torch.cuda.empty_cache()
+                    del p_inputs, q_inputs
 
             with tqdm(validation_dataloader, unit="batch") as vepoch:
 
