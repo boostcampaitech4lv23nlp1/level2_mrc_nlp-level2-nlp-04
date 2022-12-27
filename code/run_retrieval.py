@@ -35,7 +35,7 @@ def run_sparseretrieval(
     tokenize_fn = tokenizer.tokenize
 
     # Query에 맞는 Passage들을 Retrieval 합니다.
-    retriever = getattr(sys.modules[__name__], data_args.retrieval_type)(
+    retriever = getattr(sys.modules[__name__], data_args.retrieval_class)(
         tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
     )
     retriever.get_embedding()
