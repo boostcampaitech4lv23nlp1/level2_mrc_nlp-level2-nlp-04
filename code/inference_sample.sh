@@ -6,4 +6,5 @@ python inference.py \
 --overwrite_output_dir True \
 --use_faiss False \
 --eval_retrieval True \
---retrieval_type SparseRetrieval
+--retrieval_type SparseRetrieval \
+--retrieval_model_name_or_path "klue/bert-base" \
