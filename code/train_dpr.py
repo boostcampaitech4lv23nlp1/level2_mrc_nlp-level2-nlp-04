@@ -39,7 +39,7 @@ def main():
     retriever.get_embedding()
 
     # test query
-    query = "미국의 대통령은?"
+    query = "세계의 약 4분의 1을 차지하는 GDP를 차지하는 나라의 이름은?"
     retriever.retrieve(query_or_dataset=query, topk=5)
 
 

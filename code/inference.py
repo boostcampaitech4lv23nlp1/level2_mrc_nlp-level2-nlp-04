@@ -77,6 +77,8 @@ def main():
         config=config,
     )
 
+    print(data_args.eval_retrieval)
+    print(retrieval_args.retrieval_type)
     # True일 경우 : run passage retrieval
     if data_args.eval_retrieval:
         if retrieval_args.retrieval_type == "sparse":
@@ -88,7 +90,7 @@ def main():
                 datasets, training_args, data_args, retrieval_args
             )
         else:
-            assert retrieval_args.retrieval_type is None, "retrieval 타입 확인"
+            print("retrieval_type 확인")
             exit(1)
     
     # eval or predict mrc model
