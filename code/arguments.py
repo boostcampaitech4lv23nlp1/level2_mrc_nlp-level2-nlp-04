@@ -153,7 +153,7 @@ class RetrievalArguments:
     )
 
     retrieval_gradient_accumulation_steps: int = field(
-        default=16
+        default=1
     )
 
     retrieval_num_train_epochs: int = field(
