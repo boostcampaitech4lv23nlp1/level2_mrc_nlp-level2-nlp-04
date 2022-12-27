@@ -79,6 +79,8 @@ def main():
         else model_args.model_name_or_path,
         use_fast=True,
     )
+
+    retrieval_tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased", use_fase=True)
     model = AutoModelForQuestionAnswering.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -88,7 +90,7 @@ def main():
     # True일 경우 : run passage retrieval
     if data_args.eval_retrieval:
         datasets = run_retrieval(
-            tokenizer.tokenize, datasets, training_args, data_args,
+            retrieval_tokenizer.tokenize, datasets, training_args, data_args,
         )
 
     # eval or predict mrc model
