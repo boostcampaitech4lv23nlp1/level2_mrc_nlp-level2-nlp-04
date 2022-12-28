@@ -21,6 +21,7 @@ from datasets import (
     load_metric,
 )
 from retrievals import *
+from elasticsearch_retrieval import ElasticSearchRetrieval
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
@@ -110,6 +111,7 @@ def run_retrieval(
         tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
     )
     retriever.get_embedding()
+    #retriever = ElasticSearchRetrieval(index_name=data_args.index_name)
 
     if data_args.use_faiss:
         retriever.build_faiss(num_clusters=data_args.num_clusters)
