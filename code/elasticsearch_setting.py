@@ -59,6 +59,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("--index_name", default="wiki-base", type=str, help="Set index name")
     parser.add_argument("--index_settings_path", default="index_settings.json", type=str, help="Index Settings json File Path")
-    parser.add_argument("--data_path", default="./data/wikipedia_documents.json", type=str, help="Set wiki data path")
+    parser.add_argument("--data_path", default="../data/wikipedia_documents.json", type=str, help="Set wiki data path")
     args = parser.parse_args()
     main(args)
