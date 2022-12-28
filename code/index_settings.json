@@ -1,0 +1,32 @@
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "custom_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "nori_tokenizer",
+                    "decompound_mode": "mixed",
+                    "filter": ["custom_filter"]
+                }
+            },
+            "filter": {
+                "custom_filter":{
+                    "type": "shingle"
+                }
+            },
+            "similarity":{
+                "custom_similarity": {
+                    "type": "BM25"
+                }
+            }
+        }
+    },
+    "mappings": {
+        "properties": {
+            "document_text": {
+                "type": "text",
+                "analyzer": "custom_analyzer"
+            }
+        }
+    }
+}
