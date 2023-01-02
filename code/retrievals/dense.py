@@ -100,6 +100,16 @@ class DenseRetrieval:
         self.train_dataset = self.dataset["train"]  # train인지 확인!
         self.validation_dataset = self.dataset["validation"]
 
+        # 훈련시 필요한 contexts
+        self.train_contexts = np.array(
+            list(set([example for example in self.train_dataset["context"]])))
+        self.validation_contexts = np.array(
+            list(set([example for example in self.validation_dataset["context"]])))
+        
+        print(f"Lengths of Train unique contexts : {len(self.train_contexts)}")
+        print(
+            f"Lengths of Validation unique contexts : {len(self.validation_contexts)}")
+
         # p_embedding의 저장 경로 지정
         pickle_name = f"dense_embedding.bin"
         self.emd_path = os.path.join(self.data_path, pickle_name)
