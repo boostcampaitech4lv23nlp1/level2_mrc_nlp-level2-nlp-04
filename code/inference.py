@@ -25,7 +25,7 @@ from transformers import (
 )
 
 from run_mrc import run_mrc
-from run_retrieval import run_sparseretrieval, run_denseretrieval
+from run_retrieval import run_sparseretrieval, run_denseretrieval, run_elasticsearch_retrieval
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,10 @@ def main():
             datasets = run_denseretrieval(
                 datasets, training_args, data_args, retrieval_args
             )
+        elif retrieval_args.retrieval_type == "elasticsearch":
+            datasets = run_elasticsearch_retrieval(
+                datasets, training_args, data_args, retrieval_args
+            )            
         else:
             print("retrieval_type 확인")
             exit(1)
