@@ -76,9 +76,10 @@ class DataTrainingArguments:
     )
     eval_retrieval: bool = field(
         default=True,
-        metadata={"help": "Whether to run passage retrieval using sparse embedding."},
+        metadata={
+            "help": "Whether to run passage retrieval using sparse embedding."},
     )
-    retrieval_type: str = field(
+    retrieval_class: str = field(
         default="SparseRetrieval",
         metadata={
             "help": "Retrieval 클래스 이름"
@@ -112,3 +113,62 @@ class WandbArguments:
     entity_name: Optional[str] = field(
         default="sajo-tuna",
     )
+
+
+@dataclass
+class RetrievalArguments:
+    """
+    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
+    """
+
+    retrieval_model_name_or_path: str = field(
+        default="klue/bert-base",
+        metadata={
+            "help": "Path to pretrained model or model identifier from huggingface.co/models"
+        },
+    )
+
+    retrieval_dataset_name: Optional[str] = field(
+        default="../data/train_dataset",
+        metadata={"help": "The name of the dataset to use."},
+    )
+
+    num_neg: int = field(
+        default=2
+    )
+    retrieval_type: str = field(
+        default=None,
+        metadata={
+            "help": "retrieval type"
+        },
+    )
+    # TrainingArgument와 관련있는 부분입니다
+    # --------------------------------------
+    retrieval_output_dir: Optional[str] = field(
+        default="dense_retrieval",
+    )
+
+    retrieval_learning_rate: float = field(
+        default=2e-5
+    )
+
+    retrieval_per_device_train_batch_size: int = field(
+        default=8
+    )
+
+    retrieval_per_device_eval_batch_size: int = field(
+        default=8
+    )
+
+    retrieval_num_train_epochs: int = field(
+        default=3
+    )
+
+    retrieval_weight_decay: float = field(
+        default=0.01
+    )
+
+    retrieval_warmup_steps: float = field(
+        default=0
+    )
+    # --------------------------------------

@@ -7,19 +7,10 @@ Open-Domain Question Answering 을 수행하는 inference 코드 입니다.
 
 import logging
 import sys
-from typing import Callable, Dict, List, NoReturn, Tuple
 
 import numpy as np
-from arguments import DataTrainingArguments, ModelArguments
-from datasets import (
-    Dataset,
-    DatasetDict,
-    Features,
-    Sequence,
-    Value,
-    load_from_disk,
-    load_metric,
-)
+from arguments import DataTrainingArguments, ModelArguments, RetrievalArguments
+from datasets import load_from_disk
 from retrievals import *
 from elasticsearch_retrieval import ElasticSearchRetrieval
 from trainer_qa import QuestionAnsweringTrainer
@@ -33,8 +24,9 @@ from transformers import (
     TrainingArguments,
     set_seed,
 )
-from utils_qa import check_no_error, postprocess_qa_predictions
+
 from run_mrc import run_mrc
+from run_retrieval import run_sparseretrieval, run_denseretrieval
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +36,9 @@ def main():
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
 
     parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, TrainingArguments)
+        (ModelArguments, DataTrainingArguments, TrainingArguments, RetrievalArguments)
     )
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    model_args, data_args, training_args, retrieval_args = parser.parse_args_into_dataclasses()
 
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
@@ -88,17 +80,28 @@ def main():
         config=config,
     )
 
+    print(data_args.eval_retrieval)
+    print(retrieval_args.retrieval_type)
     # True일 경우 : run passage retrieval
     if data_args.eval_retrieval:
-        datasets = run_retrieval(
-            retrieval_tokenizer.tokenize, datasets, training_args, data_args,
-        )
-
+        if retrieval_args.retrieval_type == "sparse":
+            datasets = run_sparseretrieval(
+                datasets, training_args, data_args, retrieval_args
+            )
+        elif retrieval_args.retrieval_type == "dense":
+            datasets = run_denseretrieval(
+                datasets, training_args, data_args, retrieval_args
+            )
+        else:
+            print("retrieval_type 확인")
+            exit(1)
+    
     # eval or predict mrc model
     if training_args.do_eval or training_args.do_predict:
         run_mrc(data_args, training_args, model_args, datasets, tokenizer, model, "inference", logger)
 
 
+<<<<<<< HEAD
 def run_retrieval(
     tokenize_fn: Callable[[str], List[str]],
     datasets: DatasetDict,
@@ -154,5 +157,7 @@ def run_retrieval(
     return datasets
 
 
+=======
+>>>>>>> dev
 if __name__ == "__main__":
     main()
