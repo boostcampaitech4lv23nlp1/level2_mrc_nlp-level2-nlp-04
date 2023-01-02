@@ -218,9 +218,9 @@ class DenseRetrieval:
 
         # Dataloader
         train_dataloader = DataLoader(
-            self.train_tensor, batch_size=train_batch_size, drop_last = True)
+            self.train_tensor, batch_size=train_batch_size, drop_last=True)
         validation_dataloader = DataLoader(
-            self.validation_tensor, batch_size=validation_batch_size, drop_last = True)
+            self.validation_tensor, batch_size=validation_batch_size, drop_last=True)
 
         # Optimizer
         no_decay = ["bias", "LayerNorm.weight"]
@@ -412,7 +412,7 @@ class DenseRetrieval:
 
             wandb.log(validation_log_dict)
 
-            if validation_log_dict["validation acc_topk_10"]<high_acc:
+            if validation_log_dict["validation acc_topk_10"] > high_acc:
                 # Encoder Model Save
                 self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
                 self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
