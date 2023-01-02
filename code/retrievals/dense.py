@@ -218,9 +218,9 @@ class DenseRetrieval:
 
         # Dataloader
         train_dataloader = DataLoader(
-            self.train_tensor, batch_size=train_batch_size)
+            self.train_tensor, batch_size=train_batch_size, drop_last = True)
         validation_dataloader = DataLoader(
-            self.validation_tensor, batch_size=validation_batch_size)
+            self.validation_tensor, batch_size=validation_batch_size, drop_last = True)
 
         # Optimizer
         no_decay = ["bias", "LayerNorm.weight"]
