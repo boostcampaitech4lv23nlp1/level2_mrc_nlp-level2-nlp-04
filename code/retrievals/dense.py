@@ -101,14 +101,8 @@ class DenseRetrieval:
         self.validation_dataset = self.dataset["validation"]
 
         # 훈련시 필요한 contexts
-        self.train_contexts = np.array(
-            list(set([example for example in self.train_dataset["context"]])))
         self.validation_contexts = np.array(
-            list(set([example for example in self.validation_dataset["context"]])))
-        
-        print(f"Lengths of Train unique contexts : {len(self.train_contexts)}")
-        print(
-            f"Lengths of Validation unique contexts : {len(self.validation_contexts)}")
+            list([example for example in self.validation_dataset["context"]]))
 
         # p_embedding의 저장 경로 지정
         pickle_name = f"dense_embedding.bin"
@@ -283,8 +277,8 @@ class DenseRetrieval:
 
                     global_step += 1
 
-                    torch.cuda.empty_cache()
                     del p_inputs, q_inputs
+                    torch.cuda.empty_cache()
 
             with tqdm(validation_dataloader, unit="batch") as vepoch:
 
@@ -332,6 +326,9 @@ class DenseRetrieval:
                         loss = F.nll_loss(sim_scores, targets)
                         losses.append(loss.item())
 
+                        del p_inputs, q_inputs
+                        torch.cuda.empty_cache()
+
             # accuracy를 계산합니다
 
             queries = self.validation_dataset["question"]
@@ -362,7 +359,7 @@ class DenseRetrieval:
             validation_log_dict = dict()
             validation_log_dict["validation loss"] = np.array(losses).mean()
 
-            topks = [10, 20, 50, 100]  # 10,20,50,100을 기준으로 accuracy를 계산합니다
+            topks = [5, 10, 20]  # 5, 10, 20을 기준으로 accuracy를 계산합니다
             # query 및 ground truth를 받아와야함
             for topk in topks:
                 score = 0
@@ -425,6 +422,38 @@ class DenseRetrieval:
             with open(self.emd_path, "wb") as file:
                 pickle.dump(self.p_embedding, file)
             print("Embedding pickle saved.")
+
+        self.q_encoder = BertEncoder.from_pretrained(
+            args.output_dir+"/q_encoder").to(args.device)  # q_encoder를 불러옵니다
+
+        # accuracy를 계산합니다
+        queries = self.validation_dataset["question"]
+        ground_truth = self.validation_dataset["context"]
+
+        with torch.no_grad():
+            self.q_encoder.eval()
+            q_seqs_val = self.tokenizer(queries, padding="max_length", truncation=True, return_tensors="pt").to(
+                args.device)  # (num_query, emb_dim)
+            q_emb = self.q_encoder(**q_seqs_val).to("cpu")
+
+            # (num_passage, emb_dim)
+            dot_prod_scores = torch.matmul(
+                q_emb, torch.transpose(self.p_embedding, 0, 1))
+            rank = torch.argsort(dot_prod_scores, dim=1,
+                                 descending=True).squeeze()
+            topks = [10, 20, 50, 100]  # 10,20,50,100을 기준으로 accuracy를 계산합니다
+            # query 및 ground truth를 받아와야함
+            for topk in topks:
+                score = 0
+                for idx, query in enumerate(queries):
+                    r = rank[idx]
+                    r_ = r[:topk+1]
+                    passages = [self.contexts[i] for i in r_]
+                    if ground_truth[idx] in passages:
+                        score += 1
+
+                accuracy = score / len(queries)
+                print(f"top k-{topk} accuracy : {accuracy}")
 
     def get_relevant_doc(self, query, k=1, args=None):
         """
