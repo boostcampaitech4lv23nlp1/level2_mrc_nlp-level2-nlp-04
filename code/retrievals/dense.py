@@ -161,6 +161,7 @@ class DenseRetrieval:
             klue/bert-base 기준으로 작성되었습니다.
         """
 
+        accumulation_steps = 16
         args = self.training_args
         high_acc = -1  # acc 계산
 
@@ -264,16 +265,19 @@ class DenseRetrieval:
 
                     sim_scores = F.log_softmax(sim_scores, dim=1)
                     loss = F.nll_loss(sim_scores, targets)
+                    loss = loss / accumulation_steps
 
                     tepoch.set_postfix(loss=f" {str(loss.item())}")
                     wandb.log({"train loss": loss})
 
                     loss.backward()
-                    optimizer.step()
-                    scheduler.step()
 
-                    self.q_encoder.zero_grad()
-                    self.p_encoder.zero_grad()
+                    if (step+1) % accumulation_steps == 0:
+                        optimizer.step()
+                        scheduler.step()
+
+                        self.q_encoder.zero_grad()
+                        self.p_encoder.zero_grad()
 
                     global_step += 1
 
