@@ -31,6 +31,7 @@ from datasets import DatasetDict
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizerFast, TrainingArguments, is_torch_available
 from transformers.trainer_utils import get_last_checkpoint
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,31 @@ def postprocess_qa_predictions(
         is_world_process_zero (:obj:`bool`, `optional`, defaults to :obj:`True`):
             이 프로세스가 main process인지 여부(logging/save를 수행해야 하는지 여부를 결정하는 데 사용됨)
     """
+    # nbest prediction에서 예측한 정답 string이 동일한 예측값들의 확률을 모두 합산하는 함수입니다.
+    def summation_socres_of_same_strings(predictions):
+        predictions_df = pd.DataFrame(predictions)
+        summation_df = {}
+        
+        for col in range(len(predictions_df.columns)):
+            summation_dict = {}
+            summation_df[predictions_df.columns[col]] = None
+            
+            for row in range(0, n_best_size): 
+                logit_dict = predictions_df.iloc[:, col][row]
+                start_logit = logit_dict['start_logit']
+                end_logit = logit_dict['end_logit']
+                text = logit_dict['text']
+                probability = logit_dict['probability']
+            
+                try:
+                    summation_dict[text] += probability
+                except KeyError:
+                    summation_dict[text] = probability
+            
+            # 점수가 높은 순으로 정렬한 후 가장 점수가 높은 answer만 가져옵니다.
+            summation_df[predictions_df.columns[col]] = sorted(summation_dict.items(), reverse=True, key=lambda item: item[1])[0][0]
+        return summation_df
+
     assert (
         len(predictions) == 2
     ), "`predictions` should be a tuple with two elements (start_logits, end_logits)."
@@ -285,6 +311,12 @@ def postprocess_qa_predictions(
             if prefix is None
             else f"nbest_predictions_{prefix}".json,
         )
+        summation_file = os.path.join(
+            output_dir,
+            "summation_of_predictions.json"
+            if prefix is None else f"summation_of_predictions_{prefix}".json
+        )
+
         if version_2_with_negative:
             null_odds_file = os.path.join(
                 output_dir,
@@ -301,6 +333,12 @@ def postprocess_qa_predictions(
             writer.write(
                 json.dumps(all_nbest_json, indent=4, ensure_ascii=False) + "\n"
             )
+        logger.info(f"Saving summation of nbest_preds to {'summation_of_predictions.json'}.")
+        with open(summation_file, "w", encoding="utf-8") as writer:
+            writer.write(
+                json.dumps(summation_socres_of_same_strings(all_nbest_json), indent=4, ensure_ascii=False) + "\n"
+            )
+
         if version_2_with_negative:
             logger.info(f"Saving null_odds to {null_odds_file}.")
             with open(null_odds_file, "w", encoding="utf-8") as writer:
