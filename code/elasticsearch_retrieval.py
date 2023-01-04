@@ -23,7 +23,7 @@ class ElasticSearchRetrieval:
         self.index_name = index_name
         # 인덱스 저장 확인 => 저장되어 있지 않을시 elasticsearch_setting.py로 저장 후 실행
         if self.es.indices.exists(index=self.index_name):
-            print("Index Exists")
+            print(f"Index {self.index_name} Exists")
         else:
             print("Need to save index")
         self.mecab = Mecab()
