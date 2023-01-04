@@ -96,7 +96,7 @@ class DenseRetrieval:
             self.wiki = json.load(f)
 
         # wiki preprocessing step
-        self.wiki = wikipedia_preprocessing(self.wiki)
+        # self.wiki = wikipedia_preprocessing(self.wiki)
 
 
         self.contexts = list(dict.fromkeys(
