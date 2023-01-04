@@ -36,15 +36,6 @@ def run_mrc(
         # truncation과 padding(length가 짧을때만)을 통해 toknization을 진행하며, stride를 이용하여 overflow를 유지합니다.
         # 각 example들은 이전의 context와 조금씩 겹치게됩니다.
 
-        # print(examples['context'][0])
-
-
-        for i, (context, answer) in enumerate(zip(examples['context'], examples['answers'])):
-            examples['context'][i], examples['answers'][i] = mrc_preprocessing(context, answer)
-        
-        # print('---------전처리 후----------')
-        # print(examples['context'][0])
-
         tokenized_examples = tokenizer(
             examples[question_column_name if pad_on_right else context_column_name],
             examples[context_column_name if pad_on_right else question_column_name],
@@ -66,49 +57,12 @@ def run_mrc(
 
         return tokenized_examples
 
-
-    ### light preprocessing
-    def mrc_preprocessing(context, answers):            
-        start_pos_marker = "<SPOS>"
-        # print(examples)
-        # context = examples["context"]
-        # answer_text = examples["answers"]["text"][0]
-        # start_pos = examples["answers"]["answer_start"][0]
-        
-        answer_text = answers["text"][0]
-        start_pos = answers["answer_start"][0]
-
-        # <SPOS> 붙이기
-        context = start_pos_marker.join([context[:start_pos],context[start_pos:]])
-
-        context = re.sub(r'\\n', ' ', context)    
-        # context = re.sub(r'\'', '', context) 
-        # answer_text = re.sub(r'\'', '', answer_text)
-        context = re.sub(r'(\w+:\/\/\S+)', ' ', context)              # link 형식 제거
-        context = ' '.join(context.split())
-
-        ## <SPOS>의 위치를 저장하기
-        answers["answer_start"][0] = context.index(start_pos_marker)
-        
-        ## <SPOS>를 뺀 나머지의 context를 저장하기
-        context = re.sub(start_pos_marker,"", context)
-        
-        return context, answers
-
-
-
-
-
-
-    
     
     
     # Validation preprocessing
     def prepare_validation_features(examples):
         # truncation과 padding(length가 짧을때만)을 통해 toknization을 진행하며, stride를 이용하여 overflow를 유지합니다.
         # 각 example들은 이전의 context와 조금씩 겹치게됩니다.
-        for i, (context, answer) in enumerate(zip(examples['context'], examples['answers'])):
-            examples['context'][i], examples['answers'][i] = mrc_preprocessing(context, answer)
 
         tokenized_examples = tokenizer(
             examples[question_column_name if pad_on_right else context_column_name],
