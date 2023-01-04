@@ -6,6 +6,7 @@ import pandas as pd
 from datasets import Dataset
 from tqdm.auto import tqdm
 from elasticsearch_setting import *
+from konlpy.tag import Mecab
 
 
 @contextmanager
@@ -25,11 +26,13 @@ class ElasticSearchRetrieval:
             print("Index Exists")
         else:
             print("Need to save index")
+        self.mecab = Mecab()
 
     # 쿼리 결과 확인
     def query_search(
         self, query : str, topk : int
     ): 
+        query = self.query_filter(query)
         body = {
             "query": {
                 "bool": {
@@ -38,7 +41,27 @@ class ElasticSearchRetrieval:
             }
         }
         result = self.es.search(index=self.index_name, body=body, size=topk)
-        return result 
+        return result
+
+    def query_filter(
+        self, query : str,
+    ):
+        tags = ['SY', 'EF', 'SF', 'VCP+EF', 'SC', 'JX', 'EP']
+        words = query.split(' ')
+        new_query = ''
+        
+        for word in words: 
+            morphs = self.mecab.pos(word, join=False)
+            for morph in morphs:
+                if morph[1] not in tags:
+                    new_query += ''.join(morph[0])
+            new_query += ' '
+        
+        new_query = new_query[:-1]
+        if new_query[-1] in ['되', '있', '하']:
+            new_query = new_query[:-1]
+            
+        return new_query.strip()
 
     def retrieve(
         self, query_or_dataset: Union[str, Dataset], topk: Optional[int] = 1
