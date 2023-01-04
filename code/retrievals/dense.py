@@ -3,7 +3,7 @@ import json
 import pickle
 import time
 import wandb
-
+import faiss
 import numpy as np
 import pandas as pd
 
@@ -100,6 +100,8 @@ class DenseRetrieval:
         self.train_dataset = self.dataset["train"]  # train인지 확인!
         self.validation_dataset = self.dataset["validation"]
 
+        self.origin_dataset = load_from_disk("../data/train_dataset")
+        self.origin_validation_dataset = self.origin_dataset["validation"]
         # 훈련시 필요한 contexts
         self.validation_contexts = np.array(
             list([example for example in self.validation_dataset["context"]]))
@@ -121,6 +123,7 @@ class DenseRetrieval:
             dataset=self.validation_dataset)
 
         self.p_embedding = None  # get_embedding()로 생성합니다
+        self.indexer = None  # build_faiss()로 생성합니다.
 
     def prepare_in_batch_negative(self,
                                   dataset,
@@ -163,7 +166,7 @@ class DenseRetrieval:
 
         accumulation_steps = 16
         args = self.training_args
-        high_acc = -1  # acc 계산
+        origin_loss = 1000000  # acc 계산
 
         wandb.init(project=wandb_args.project_name,
                    entity=wandb_args.entity_name)
@@ -333,57 +336,16 @@ class DenseRetrieval:
                         del p_inputs, q_inputs
                         torch.cuda.empty_cache()
 
-            # accuracy를 계산합니다
+                validation_log_dict = dict()
+                validation_log_dict["validation loss"] = np.array(
+                    losses).mean()
+                wandb.log(validation_log_dict)
 
-            queries = self.validation_dataset["question"]
-            ground_truth = self.validation_dataset["context"]
-
-            with torch.no_grad():
-                self.p_encoder.eval()
-                self.q_encoder.eval()
-
-                q_seqs_val = self.tokenizer(queries, padding="max_length", truncation=True, return_tensors="pt").to(
-                    args.device)  # (num_query, emb_dim)
-                q_emb = self.q_encoder(**q_seqs_val).to("cpu")
-
-                p_embs = []
-                for p in self.validation_contexts:
-                    p = self.tokenizer(
-                        p, padding="max_length", truncation=True, return_tensors="pt").to(args.device)
-                    p_emb = self.p_encoder(**p).to("cpu").numpy()
-                    p_embs.append(p_emb)
-
-                # (num_passage, emb_dim)
-                p_embs = torch.Tensor(p_embs).squeeze()
-                dot_prod_scores = torch.matmul(
-                    q_emb, torch.transpose(p_embs, 0, 1))
-                rank = torch.argsort(dot_prod_scores, dim=1,
-                                     descending=True).squeeze()
-
-            validation_log_dict = dict()
-            validation_log_dict["validation loss"] = np.array(losses).mean()
-
-            topks = [5, 10, 20]  # 5, 10, 20을 기준으로 accuracy를 계산합니다
-            # query 및 ground truth를 받아와야함
-            for topk in topks:
-                score = 0
-                for idx, query in enumerate(queries):
-                    r = rank[idx]
-                    r_ = r[:topk+1]
-                    passages = [self.validation_contexts[i] for i in r_]
-                    if ground_truth[idx] in passages:
-                        score += 1
-
-                accuracy = score / len(queries)
-                validation_log_dict[f"validation acc_topk_{topk}"] = accuracy
-
-            wandb.log(validation_log_dict)
-
-            if validation_log_dict["validation acc_topk_10"] > high_acc:
+            if validation_log_dict["validation loss"] < origin_loss:
                 # Encoder Model Save
                 self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
                 self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
-                high_acc = validation_log_dict["validation acc_topk_10"]
+                origin_loss = validation_log_dict["validation loss"]
 
         wandb.finish()
 
@@ -403,7 +365,6 @@ class DenseRetrieval:
             with open(self.emd_path, "rb") as file:
                 self.p_embedding = pickle.load(file)
             print("Embedding pickle load")
-
         else:
             print("Build passage embedding")
 
@@ -431,8 +392,9 @@ class DenseRetrieval:
             args.output_dir+"/q_encoder").to(args.device)  # q_encoder를 불러옵니다
 
         # accuracy를 계산합니다
-        queries = self.validation_dataset["question"]
-        ground_truth = self.validation_dataset["context"]
+        
+        queries = self.origin_validation_dataset["question"]
+        ground_truth = self.origin_validation_dataset["context"]
 
         with torch.no_grad():
             self.q_encoder.eval()
