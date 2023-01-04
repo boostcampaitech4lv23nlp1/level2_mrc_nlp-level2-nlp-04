@@ -440,31 +440,8 @@ def wikipedia_preprocessing(wikipedia):
     total_del_index = get_duplicate_index(wikipedia) + get_trash_index(wikipedia)
     total_del_index = list(set(total_del_index))    # 중복인덱스와 쓰레기 인덱스 간의 중복되는 index 제거
 
-    print(f'필요없는 문서 제거 전 wiki 개수: {len(wikipedia)}')
 
     del_data(wikipedia, total_del_index)
-
-    print(f'문서 제거 후 wiki 개수 {len(wikipedia)}')
-
-
-    ### 특수문자 전처리
-
-    def wiki_preprocessing(sample):
-        txt = sample['text']
-        
-        # txt = re.sub(r'(\\\w+)', '', txt)          # 태그 삭제 (\xa, \\ue253)
-        txt = re.sub(r'\n', ' ', txt)
-        txt = re.sub(r'\'', '', txt)
-        txt = re.sub(r'(\w+:\/\/\S+)', ' ', txt)     # link 형식 제거
-        txt = ' '.join(txt.split())     # 다중 공백 제거
-        
-        sample['text'] = txt
-
-        return sample
-
-
-    for wiki_key in wikipedia:
-        wikipedia[wiki_key] = wiki_preprocessing(wikipedia[wiki_key])
 
 
     return wikipedia

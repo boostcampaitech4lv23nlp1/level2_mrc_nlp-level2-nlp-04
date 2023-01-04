@@ -8,6 +8,7 @@ from tqdm.auto import tqdm
 from elasticsearch_setting import *
 from utils_qa import add_ner_func
 from arguments import DataTrainingArguments
+from konlpy.tag import Mecab
 
 
 @contextmanager
@@ -24,18 +25,22 @@ class ElasticSearchRetrieval:
         self.index_name = index_name
         # 인덱스 저장 확인 => 저장되어 있지 않을시 elasticsearch_setting.py로 저장 후 실행
         if self.es.indices.exists(index=self.index_name):
-            print("Index Exists")
+            print(f"Index {self.index_name} Exists")
         else:
             print("Need to save index")
+        self.mecab = Mecab()
 
     # 쿼리 결과 확인
     def query_search(
         self, query : str, topk : int
     ): 
+            
+        query = self.query_filter(query)
+
         # query 문장에 NER을 이어붙일지의 여부
         if DataTrainingArguments.add_ner:
             query = add_ner_func(query)
-            
+
         body = {
             "query": {
                 "bool": {
@@ -44,7 +49,27 @@ class ElasticSearchRetrieval:
             }
         }
         result = self.es.search(index=self.index_name, body=body, size=topk)
-        return result 
+        return result
+
+    def query_filter(
+        self, query : str,
+    ):
+        tags = ['SY', 'EF', 'SF', 'VCP+EF', 'SC', 'JX', 'EP']
+        words = query.split(' ')
+        new_query = ''
+        
+        for word in words: 
+            morphs = self.mecab.pos(word, join=False)
+            for morph in morphs:
+                if morph[1] not in tags:
+                    new_query += ''.join(morph[0])
+            new_query += ' '
+        
+        new_query = new_query[:-1]
+        if new_query[-1] in ['되', '있', '하']:
+            new_query = new_query[:-1]
+            
+        return new_query.strip()
 
     def retrieve(
         self, query_or_dataset: Union[str, Dataset], topk: Optional[int] = 1

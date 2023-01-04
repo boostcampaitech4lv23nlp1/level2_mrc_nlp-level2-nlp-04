@@ -3,13 +3,13 @@ import json
 import pickle
 import time
 import wandb
-
+import faiss
 import numpy as np
 import pandas as pd
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset, RandomSampler
 
 from transformers import (
     AutoTokenizer,
@@ -18,7 +18,7 @@ from transformers import (
     AdamW,
     get_linear_schedule_with_warmup
 )
-from datasets import Dataset, load_from_disk
+from datasets import Dataset, load_from_disk, concatenate_datasets
 
 from tqdm import trange
 from tqdm.auto import tqdm
@@ -73,10 +73,9 @@ class DenseRetrieval:
                 TrainingArguments 형태의 argument입니다.
             retrieval_args:
                 RetrievalArguments 형태의 argument입니다.
-                model_name_or_path, num_neg , dataset_name을 사용합니다
+                model_name_or_path, dataset_name을 사용합니다
 
                 model_name_or_path: pre_trained model 경로입니다
-                num_neg: negative passage의 수입니다
                 dataset_name: mrc의 train 데이터 셋이 있는 경로입니다. 모델 훈련시 필요합니다
             data_path:
                 데이터가 보관되어 있는 경로입니다.
@@ -89,7 +88,6 @@ class DenseRetrieval:
 
         self.data_path = data_path
         self.model_name_or_path = retrieval_args.retrieval_model_name_or_path
-        self.num_neg = retrieval_args.num_neg
         self.dataset_name = retrieval_args.retrieval_dataset_name
         self.training_args = training_args
 
@@ -98,7 +96,7 @@ class DenseRetrieval:
             self.wiki = json.load(f)
 
         # wiki preprocessing step
-        self.wiki = wikipedia_preprocessing(self.wiki)
+        # self.wiki = wikipedia_preprocessing(self.wiki)
 
 
         self.contexts = list(dict.fromkeys(
@@ -108,16 +106,13 @@ class DenseRetrieval:
 
         self.train_dataset = self.dataset["train"]  # train인지 확인!
         self.validation_dataset = self.dataset["validation"]
+        self.train_dataset = concatenate_datasets([self.train_dataset, self.validation_dataset])
 
+        self.origin_dataset = load_from_disk("../data/train_dataset")
+        self.origin_validation_dataset = self.origin_dataset["validation"]
         # 훈련시 필요한 contexts
-        self.train_contexts = np.array(
-            list(set([example for example in self.train_dataset["context"]])))
         self.validation_contexts = np.array(
-            list(set([example for example in self.validation_dataset["context"]])))
-
-        print(f"Lengths of Train unique contexts : {len(self.train_contexts)}")
-        print(
-            f"Lengths of Validation unique contexts : {len(self.validation_contexts)}")
+            list([example for example in self.validation_dataset["context"]]))
 
         # p_embedding의 저장 경로 지정
         pickle_name = f"dense_embedding.bin"
@@ -131,41 +126,24 @@ class DenseRetrieval:
         self.q_encoder = None
 
         self.train_tensor = self.prepare_in_batch_negative(
-            dataset=self.train_dataset, contexts=self.train_contexts)
+            dataset=self.train_dataset)
         self.validation_tensor = self.prepare_in_batch_negative(
-            dataset=self.validation_dataset, contexts=self.validation_contexts)
+            dataset=self.validation_dataset)
 
         self.p_embedding = None  # get_embedding()로 생성합니다
+        self.indexer = None  # build_faiss()로 생성합니다.
 
     def prepare_in_batch_negative(self,
                                   dataset,
-                                  contexts
                                   ):
         """
         Arguments:
             dataset : each_dataset
-            contexts : each_total_contexts
         Summary:
-            self.num_neg만큼 in-batch negative를 수행합니다
+            Tensor 형태로 만듭니다.
         """
 
-        # num neg, tokenizer, args 정의
-        num_neg = self.num_neg
         tokenizer = self.tokenizer
-        args = self.training_args
-
-        p_with_neg = []
-
-        for c in dataset["context"]:
-            while True:
-                neg_idxs = np.random.randint(len(contexts), size=num_neg)
-
-                if not c in contexts[neg_idxs]:
-                    p_neg = contexts[neg_idxs]
-
-                    p_with_neg.append(c)
-                    p_with_neg.extend(p_neg)
-                    break
 
         q_seqs = tokenizer(
             dataset["question"],
@@ -174,20 +152,11 @@ class DenseRetrieval:
             return_tensors="pt"
         )
         p_seqs = tokenizer(
-            p_with_neg,
+            dataset["context"],
             padding="max_length",
             truncation=True,
             return_tensors="pt"
         )
-
-        max_len = p_seqs["input_ids"].size(-1)  # hidden_size
-        # negative sampling + positive
-        p_seqs["input_ids"] = p_seqs["input_ids"].view(
-            -1, num_neg + 1, max_len)
-        p_seqs["attention_mask"] = p_seqs["attention_mask"].view(
-            -1, num_neg + 1, max_len)
-        p_seqs["token_type_ids"] = p_seqs["token_type_ids"].view(
-            -1, num_neg + 1, max_len)
 
         Tensor_dataset = TensorDataset(
             p_seqs["input_ids"], p_seqs["attention_mask"], p_seqs["token_type_ids"],
@@ -203,9 +172,8 @@ class DenseRetrieval:
             klue/bert-base 기준으로 작성되었습니다.
         """
 
+        accumulation_steps = 16
         args = self.training_args
-        num_neg = self.num_neg
-        high_acc = -1  # acc 계산
 
         wandb.init(project=wandb_args.project_name,
                    entity=wandb_args.entity_name)
@@ -224,8 +192,9 @@ class DenseRetrieval:
         validation_batch_size = args.per_device_eval_batch_size
 
         # Dataloader
+        train_sampler = RandomSampler(self.train_tensor)
         train_dataloader = DataLoader(
-            self.train_tensor, batch_size=train_batch_size, drop_last=True)
+            self.train_tensor, sampler=train_sampler, batch_size=train_batch_size, drop_last=True)
         validation_dataloader = DataLoader(
             self.validation_tensor, batch_size=validation_batch_size, drop_last=True)
 
@@ -267,20 +236,18 @@ class DenseRetrieval:
 
         for _ in range(int(args.num_train_epochs)):
             with tqdm(train_dataloader, unit="batch") as tepoch:
-                for batch in tepoch:
+                for step, batch in enumerate(tepoch):
 
                     self.p_encoder.train()
                     self.q_encoder.train()
-
-                    # positive example은 전부 첫 번째에 위치하므로
-                    targets = torch.zeros(train_batch_size).long()
-                    targets = targets.to(args.device)
+                    if torch.cuda.is_available():
+                        batch = tuple(t.cuda() for t in batch)
 
                     # Bert
                     p_inputs = {
-                        "input_ids": batch[0].view(train_batch_size * (num_neg + 1), -1).to(args.device),
-                        "attention_mask": batch[1].view(train_batch_size * (num_neg + 1), -1).to(args.device),
-                        "token_type_ids": batch[2].view(train_batch_size * (num_neg + 1), -1).to(args.device)
+                        "input_ids": batch[0].to(args.device),
+                        "attention_mask": batch[1].to(args.device),
+                        "token_type_ids": batch[2].to(args.device)
                     }
 
                     q_inputs = {
@@ -290,40 +257,42 @@ class DenseRetrieval:
                     }
 
                     del batch
-
                     torch.cuda.empty_cache()
 
-                    # (batch_size * (num_neg + 1), emb_dim)
                     p_outputs = self.p_encoder(**p_inputs)
-                    q_outputs = self.q_encoder(
-                        **q_inputs)  # (batch_size, emb_dim)
+                    q_outputs = self.q_encoder(**q_inputs)
 
                     # Calculate similarity score & loss
-                    p_outputs = p_outputs.view(
-                        train_batch_size, num_neg + 1, -1)
-                    q_outputs = q_outputs.view(train_batch_size, 1, -1)
+                    # (batch_size, emb_dim) x (emb_dim, batch_size) = (batch_size, batch_size)
+                    sim_scores = torch.matmul(
+                        q_outputs, torch.transpose(p_outputs, 0, 1))
 
-                    # (batch_size, num_neg + 1)
-                    sim_scores = torch.bmm(
-                        q_outputs, torch.transpose(p_outputs, 1, 2)).squeeze()
-                    sim_scores = sim_scores.view(train_batch_size, -1)
+                    # target: position of positive samples = diagonal element
+                    targets = torch.arange(
+                        0, args.per_device_train_batch_size).long()
+                    if torch.cuda.is_available():
+                        targets = targets.to('cuda')
+
                     sim_scores = F.log_softmax(sim_scores, dim=1)
-
                     loss = F.nll_loss(sim_scores, targets)
+                    loss = loss / accumulation_steps
+
                     tepoch.set_postfix(loss=f" {str(loss.item())}")
                     wandb.log({"train loss": loss})
 
                     loss.backward()
-                    optimizer.step()
-                    scheduler.step()
 
-                    self.q_encoder.zero_grad()
-                    self.p_encoder.zero_grad()
+                    if (step+1) % accumulation_steps == 0:
+                        optimizer.step()
+                        scheduler.step()
+
+                        self.q_encoder.zero_grad()
+                        self.p_encoder.zero_grad()
 
                     global_step += 1
 
-                    torch.cuda.empty_cache()
                     del p_inputs, q_inputs
+                    torch.cuda.empty_cache()
 
             with tqdm(validation_dataloader, unit="batch") as vepoch:
 
@@ -333,15 +302,14 @@ class DenseRetrieval:
                         self.p_encoder.eval()
                         self.q_encoder.eval()
 
-                        # positive example은 전부 첫 번째에 위치하므로
-                        targets = torch.zeros(validation_batch_size).long()
-                        targets = targets.to(args.device)
+                        if torch.cuda.is_available():
+                            batch = tuple(t.cuda() for t in batch)
 
                         # Bert
                         p_inputs = {
-                            "input_ids": batch[0].view(validation_batch_size * (num_neg + 1), -1).to(args.device),
-                            "attention_mask": batch[1].view(validation_batch_size * (num_neg + 1), -1).to(args.device),
-                            "token_type_ids": batch[2].view(validation_batch_size * (num_neg + 1), -1).to(args.device)
+                            "input_ids": batch[0].to(args.device),
+                            "attention_mask": batch[1].to(args.device),
+                            "token_type_ids": batch[2].to(args.device)
                         }
 
                         q_inputs = {
@@ -351,80 +319,37 @@ class DenseRetrieval:
                         }
 
                         del batch
-
                         torch.cuda.empty_cache()
-                        # (batch_size * (num_neg + 1), emb_dim)
+
                         p_outputs = self.p_encoder(**p_inputs)
-                        # (batch_size, emb_dim)
                         q_outputs = self.q_encoder(**q_inputs)
 
                         # Calculate similarity score & loss
-                        p_outputs = p_outputs.view(
-                            validation_batch_size, num_neg + 1, -1)
-                        q_outputs = q_outputs.view(
-                            validation_batch_size, 1, -1)
+                        # (batch_size, emb_dim) x (emb_dim, batch_size) = (batch_size, batch_size)
+                        sim_scores = torch.matmul(
+                            q_outputs, torch.transpose(p_outputs, 0, 1))
 
-                        # (batch_size, num_neg + 1)
-                        sim_scores = torch.bmm(
-                            q_outputs, torch.transpose(p_outputs, 1, 2)).squeeze()
-                        sim_scores = sim_scores.view(validation_batch_size, -1)
+                        # target: position of positive samples = diagonal element
+                        targets = torch.arange(
+                            0, args.per_device_train_batch_size).long()
+                        if torch.cuda.is_available():
+                            targets = targets.to('cuda')
+
                         sim_scores = F.log_softmax(sim_scores, dim=1)
 
                         loss = F.nll_loss(sim_scores, targets)
                         losses.append(loss.item())
 
-            # accuracy를 계산합니다
+                        del p_inputs, q_inputs
+                        torch.cuda.empty_cache()
 
-            queries = self.validation_dataset["question"]
-            ground_truth = self.validation_dataset["context"]
+                validation_log_dict = dict()
+                validation_log_dict["validation loss"] = np.array(
+                    losses).mean()
+                wandb.log(validation_log_dict)
 
-            with torch.no_grad():
-                self.p_encoder.eval()
-                self.q_encoder.eval()
-
-                q_seqs_val = self.tokenizer(queries, padding="max_length", truncation=True, return_tensors="pt").to(
-                    args.device)  # (num_query, emb_dim)
-                q_emb = self.q_encoder(**q_seqs_val).to("cpu")
-
-                p_embs = []
-                for p in self.validation_contexts:
-                    p = self.tokenizer(
-                        p, padding="max_length", truncation=True, return_tensors="pt").to(args.device)
-                    p_emb = self.p_encoder(**p).to("cpu").numpy()
-                    p_embs.append(p_emb)
-
-                # (num_passage, emb_dim)
-                p_embs = torch.Tensor(p_embs).squeeze()
-                dot_prod_scores = torch.matmul(
-                    q_emb, torch.transpose(p_embs, 0, 1))
-                rank = torch.argsort(dot_prod_scores, dim=1,
-                                     descending=True).squeeze()
-
-            validation_log_dict = dict()
-            validation_log_dict["validation loss"] = np.array(losses).mean()
-
-            topks = [10, 20, 50, 100]  # 10,20,50,100을 기준으로 accuracy를 계산합니다
-            # query 및 ground truth를 받아와야함
-            for topk in topks:
-                score = 0
-                for idx, query in enumerate(queries):
-                    r = rank[idx]
-                    r_ = r[:topk+1]
-                    passages = [self.validation_contexts[i] for i in r_]
-                    if ground_truth[idx] in passages:
-                        score += 1
-
-                accuracy = score / len(queries)
-                validation_log_dict[f"validation acc_topk_{topk}"] = accuracy
-
-            wandb.log(validation_log_dict)
-
-            if validation_log_dict["validation acc_topk_10"] > high_acc:
-                # Encoder Model Save
-                self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
-                self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
-                high_acc = validation_log_dict["validation acc_topk_10"]
-
+        self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
+        self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
         wandb.finish()
 
     def get_embedding(self):
@@ -443,7 +368,6 @@ class DenseRetrieval:
             with open(self.emd_path, "rb") as file:
                 self.p_embedding = pickle.load(file)
             print("Embedding pickle load")
-
         else:
             print("Build passage embedding")
 
@@ -466,6 +390,39 @@ class DenseRetrieval:
             with open(self.emd_path, "wb") as file:
                 pickle.dump(self.p_embedding, file)
             print("Embedding pickle saved.")
+
+        self.q_encoder = BertEncoder.from_pretrained(
+            args.output_dir+"/q_encoder").to(args.device)  # q_encoder를 불러옵니다
+
+        # accuracy를 계산합니다
+        
+        queries = self.origin_validation_dataset["question"]
+        ground_truth = self.origin_validation_dataset["context"]
+
+        with torch.no_grad():
+            self.q_encoder.eval()
+            q_seqs_val = self.tokenizer(queries, padding="max_length", truncation=True, return_tensors="pt").to(
+                args.device)  # (num_query, emb_dim)
+            q_emb = self.q_encoder(**q_seqs_val).to("cpu")
+
+            # (num_passage, emb_dim)
+            dot_prod_scores = torch.matmul(
+                q_emb, torch.transpose(self.p_embedding, 0, 1))
+            rank = torch.argsort(dot_prod_scores, dim=1,
+                                 descending=True).squeeze()
+            topks = [10, 20, 50, 100]  # 10,20,50,100을 기준으로 accuracy를 계산합니다
+            # query 및 ground truth를 받아와야함
+            for topk in topks:
+                score = 0
+                for idx, query in enumerate(queries):
+                    r = rank[idx]
+                    r_ = r[:topk+1]
+                    passages = [self.contexts[i] for i in r_]
+                    if ground_truth[idx] in passages:
+                        score += 1
+
+                accuracy = score / len(queries)
+                print(f"top k-{topk} accuracy : {accuracy}")
 
     def get_relevant_doc(self, query, k=1, args=None):
         """
