@@ -341,12 +341,8 @@ class DenseRetrieval:
                     losses).mean()
                 wandb.log(validation_log_dict)
 
-            if validation_log_dict["validation loss"] < origin_loss:
-                # Encoder Model Save
-                self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
-                self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
-                origin_loss = validation_log_dict["validation loss"]
-
+        self.p_encoder.save_pretrained(args.output_dir+"/p_encoder")
+        self.q_encoder.save_pretrained(args.output_dir+"/q_encoder")
         wandb.finish()
 
     def get_embedding(self):
