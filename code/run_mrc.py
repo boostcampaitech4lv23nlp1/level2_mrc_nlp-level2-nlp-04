@@ -18,7 +18,7 @@ from transformers import (
     TrainingArguments,
     set_seed,
 )
-from utils_qa import check_no_error, postprocess_qa_predictions
+from utils_qa import check_no_error, postprocess_qa_predictions, add_ner_func
 
 def run_mrc(
     data_args: DataTrainingArguments,
@@ -37,11 +37,12 @@ def run_mrc(
         # 각 example들은 이전의 context와 조금씩 겹치게됩니다.
 
         # print(examples['context'][0])
+        # query 문장에 NER을 이어붙일지의 여부
+        if data_args.add_ner:
+            for i, question in enumerate(examples['question']):
+                # ner
+                examples['question'][i] = add_ner_func(question)
 
-
-        for i, (context, answer) in enumerate(zip(examples['context'], examples['answers'])):
-            examples['context'][i], examples['answers'][i] = mrc_preprocessing(context, answer)
-        
         # print('---------전처리 후----------')
         # print(examples['context'][0])
 
@@ -84,7 +85,7 @@ def run_mrc(
         context = re.sub(r'\\n', ' ', context)    
         # context = re.sub(r'\'', '', context) 
         # answer_text = re.sub(r'\'', '', answer_text)
-        context = re.sub(r'(\w+:\/\/\S+)', ' ', context)              # link 형식 제거
+        # context = re.sub(r'(\w+:\/\/\S+)', ' ', context)              # link 형식 제거
         context = ' '.join(context.split())
 
         ## <SPOS>의 위치를 저장하기
@@ -107,8 +108,12 @@ def run_mrc(
     def prepare_validation_features(examples):
         # truncation과 padding(length가 짧을때만)을 통해 toknization을 진행하며, stride를 이용하여 overflow를 유지합니다.
         # 각 example들은 이전의 context와 조금씩 겹치게됩니다.
-        for i, (context, answer) in enumerate(zip(examples['context'], examples['answers'])):
-            examples['context'][i], examples['answers'][i] = mrc_preprocessing(context, answer)
+
+        # query 문장에 NER을 이어붙일지의 여부
+        if data_args.add_ner:
+            for i, question in enumerate(examples['question']):
+                # ner
+                examples['question'][i] = add_ner_func(question)
 
         tokenized_examples = tokenizer(
             examples[question_column_name if pad_on_right else context_column_name],

@@ -32,6 +32,7 @@ from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizerFast, TrainingArguments, is_torch_available
 from transformers.trainer_utils import get_last_checkpoint
 import pandas as pd
+from pororo import Pororo
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,7 @@ def postprocess_qa_predictions(
     # nbest prediction에서 예측한 정답 string이 동일한 예측값들의 확률을 모두 합산하는 함수입니다.
     def summation_socres_of_same_strings(predictions):
         predictions_df = pd.DataFrame(predictions)
+        # predictions_df = pd.DataFrame.from_dict(predictions, orient='index')
         summation_df = {}
         
         for col in range(len(predictions_df.columns)):
@@ -466,3 +468,14 @@ def wikipedia_preprocessing(wikipedia):
 
 
     return wikipedia
+
+
+# 개체명 인식해서 원본 텍스트에 추가하기.
+ner = Pororo(task='ner', lang='ko')
+def add_ner_func(text):
+    try:
+        ner_results = [x[0] for x in ner(text) if x[1] != 'O']
+        return text + " " + " ".join(ner_results)
+    # pororo 에러 발생 시 원본 리턴
+    except IndexError:
+        return text

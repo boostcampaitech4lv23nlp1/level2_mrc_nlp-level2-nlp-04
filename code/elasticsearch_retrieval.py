@@ -6,6 +6,8 @@ import pandas as pd
 from datasets import Dataset
 from tqdm.auto import tqdm
 from elasticsearch_setting import *
+from utils_qa import add_ner_func
+from arguments import DataTrainingArguments
 
 
 @contextmanager
@@ -30,10 +32,14 @@ class ElasticSearchRetrieval:
     def query_search(
         self, query : str, topk : int
     ): 
+        # query 문장에 NER을 이어붙일지의 여부
+        if DataTrainingArguments.add_ner:
+            query = add_ner_func(query)
+            
         body = {
             "query": {
                 "bool": {
-                    "must": [{"match": {"document_text": query}}],
+                    "must": [{"match": {"document_text": query}}]
                 }
             }
         }

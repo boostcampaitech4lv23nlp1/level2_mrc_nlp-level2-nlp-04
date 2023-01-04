@@ -101,6 +101,10 @@ class DataTrainingArguments:
         default="wiki-base", metadata={"help": "Elasticsearch Index Settings Name"}
     )
 
+    add_ner: bool = field(
+        default=False, metadata={"help": "Whether put the NER result after the query"}
+    )
+
 
 @dataclass
 class WandbArguments:
