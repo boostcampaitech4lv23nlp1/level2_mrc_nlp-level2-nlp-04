@@ -18,7 +18,7 @@ from transformers import (
     AdamW,
     get_linear_schedule_with_warmup
 )
-from datasets import Dataset, load_from_disk
+from datasets import Dataset, load_from_disk, concatenate_datasets
 
 from tqdm import trange
 from tqdm.auto import tqdm
@@ -106,6 +106,7 @@ class DenseRetrieval:
 
         self.train_dataset = self.dataset["train"]  # train인지 확인!
         self.validation_dataset = self.dataset["validation"]
+        self.train_dataset = concatenate_datasets([self.train_dataset, self.validation_dataset])
 
         self.origin_dataset = load_from_disk("../data/train_dataset")
         self.origin_validation_dataset = self.origin_dataset["validation"]
@@ -173,7 +174,6 @@ class DenseRetrieval:
 
         accumulation_steps = 16
         args = self.training_args
-        origin_loss = 1000000  # acc 계산
 
         wandb.init(project=wandb_args.project_name,
                    entity=wandb_args.entity_name)
