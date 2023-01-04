@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import random
+import re
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -30,6 +31,7 @@ from datasets import DatasetDict
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizerFast, TrainingArguments, is_torch_available
 from transformers.trainer_utils import get_last_checkpoint
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +96,31 @@ def postprocess_qa_predictions(
         is_world_process_zero (:obj:`bool`, `optional`, defaults to :obj:`True`):
             이 프로세스가 main process인지 여부(logging/save를 수행해야 하는지 여부를 결정하는 데 사용됨)
     """
+    # nbest prediction에서 예측한 정답 string이 동일한 예측값들의 확률을 모두 합산하는 함수입니다.
+    def summation_socres_of_same_strings(predictions):
+        predictions_df = pd.DataFrame(predictions)
+        summation_df = {}
+        
+        for col in range(len(predictions_df.columns)):
+            summation_dict = {}
+            summation_df[predictions_df.columns[col]] = None
+            
+            for row in range(0, n_best_size): 
+                logit_dict = predictions_df.iloc[:, col][row]
+                start_logit = logit_dict['start_logit']
+                end_logit = logit_dict['end_logit']
+                text = logit_dict['text']
+                probability = logit_dict['probability']
+            
+                try:
+                    summation_dict[text] += probability
+                except KeyError:
+                    summation_dict[text] = probability
+            
+            # 점수가 높은 순으로 정렬한 후 가장 점수가 높은 answer만 가져옵니다.
+            summation_df[predictions_df.columns[col]] = sorted(summation_dict.items(), reverse=True, key=lambda item: item[1])[0][0]
+        return summation_df
+
     assert (
         len(predictions) == 2
     ), "`predictions` should be a tuple with two elements (start_logits, end_logits)."
@@ -284,6 +311,12 @@ def postprocess_qa_predictions(
             if prefix is None
             else f"nbest_predictions_{prefix}".json,
         )
+        summation_file = os.path.join(
+            output_dir,
+            "summation_of_predictions.json"
+            if prefix is None else f"summation_of_predictions_{prefix}".json
+        )
+
         if version_2_with_negative:
             null_odds_file = os.path.join(
                 output_dir,
@@ -300,6 +333,12 @@ def postprocess_qa_predictions(
             writer.write(
                 json.dumps(all_nbest_json, indent=4, ensure_ascii=False) + "\n"
             )
+        logger.info(f"Saving summation of nbest_preds to {'summation_of_predictions.json'}.")
+        with open(summation_file, "w", encoding="utf-8") as writer:
+            writer.write(
+                json.dumps(summation_socres_of_same_strings(all_nbest_json), indent=4, ensure_ascii=False) + "\n"
+            )
+
         if version_2_with_negative:
             logger.info(f"Saving null_odds to {null_odds_file}.")
             with open(null_odds_file, "w", encoding="utf-8") as writer:
@@ -354,3 +393,76 @@ def check_no_error(
     if "validation" not in datasets:
         raise ValueError("--do_eval requires a validation dataset")
     return last_checkpoint, max_seq_length
+
+
+
+
+
+def wikipedia_preprocessing(wikipedia):
+    # wiki 에서 trash 데이터 제거 및 중복 제거
+    def get_trash_index(wiki):
+        special = re.compile(r'[가-힣+]')
+
+        trash_indexes = []
+
+        for i in wiki:
+            txt = wiki[i]['text']
+            res = re.findall(special, txt)
+            if res == [] and int(i) not in trash_indexes:
+                trash_indexes.append(int(i))
+                
+        return trash_indexes
+
+
+    def get_duplicate_index(wiki):
+        wiki_dict = dict()
+        dup_index = []
+        for i, wiki_key in enumerate(wiki):            # wiki key => '0', '1', ...
+            txt = wiki[wiki_key]['text']
+            if txt in wiki_dict:
+                dup_index.append(i)       # 중복된 index (지우기)
+            else:
+                wiki_dict[txt] = i                  # 중복 없는 index들 (unique context를 key로 넣기)
+            
+        return dup_index
+            
+    def del_data(temp_wiki, del_index):
+        for di in del_index:   
+            try:
+                temp_wiki.pop(str(di))           
+            except:
+                continue
+        
+        return temp_wiki
+
+    total_del_index = get_duplicate_index(wikipedia) + get_trash_index(wikipedia)
+    total_del_index = list(set(total_del_index))    # 중복인덱스와 쓰레기 인덱스 간의 중복되는 index 제거
+
+    print(f'필요없는 문서 제거 전 wiki 개수: {len(wikipedia)}')
+
+    del_data(wikipedia, total_del_index)
+
+    print(f'문서 제거 후 wiki 개수 {len(wikipedia)}')
+
+
+    ### 특수문자 전처리
+
+    def wiki_preprocessing(sample):
+        txt = sample['text']
+        
+        # txt = re.sub(r'(\\\w+)', '', txt)          # 태그 삭제 (\xa, \\ue253)
+        txt = re.sub(r'\n', ' ', txt)
+        txt = re.sub(r'\'', '', txt)
+        txt = re.sub(r'(\w+:\/\/\S+)', ' ', txt)     # link 형식 제거
+        txt = ' '.join(txt.split())     # 다중 공백 제거
+        
+        sample['text'] = txt
+
+        return sample
+
+
+    for wiki_key in wikipedia:
+        wikipedia[wiki_key] = wiki_preprocessing(wikipedia[wiki_key])
+
+
+    return wikipedia

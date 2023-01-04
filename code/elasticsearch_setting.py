@@ -3,6 +3,7 @@ import argparse
 import json
 import warnings
 
+from utils_qa import wikipedia_preprocessing
 from elasticsearch import Elasticsearch
 
 warnings.filterwarnings('ignore')
@@ -33,6 +34,8 @@ def index_setting(es, index_name, index_settings_path):
 def data_load(data_path):
     with open(data_path, "r", encoding="utf-8") as f:
         wiki = json.load(f)  
+
+    wiki = wikipedia_preprocessing(wiki)
 
     wiki_contexts = list(dict.fromkeys([v["text"] for v in wiki.values()]))  
     wiki_articles = [{"document_text": wiki_contexts[i]} for i in range(len(wiki_contexts))] # 인덱스 셋팅에 맞게 형식 맞춤

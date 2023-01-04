@@ -24,6 +24,7 @@ from tqdm import trange
 from tqdm.auto import tqdm
 from typing import List, Optional, Tuple, Union
 from contextlib import contextmanager
+from utils_qa import wikipedia_preprocessing
 
 # TODO: wandb logging and huggingface hub porting
 
@@ -90,8 +91,14 @@ class DenseRetrieval:
         self.dataset_name = retrieval_args.retrieval_dataset_name
         self.training_args = training_args
 
+
         with open(os.path.join(self.data_path, context_path), "r", encoding="utf-8") as f:
             self.wiki = json.load(f)
+
+        # wiki preprocessing step
+        self.wiki = wikipedia_preprocessing(self.wiki)
+
+
         self.contexts = list(dict.fromkeys(
             [v["text"] for v in self.wiki.values()]))  # set 은 매번 순서가 바뀌므로
 
