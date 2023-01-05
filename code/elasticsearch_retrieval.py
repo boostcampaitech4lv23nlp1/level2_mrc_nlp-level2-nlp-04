@@ -34,12 +34,11 @@ class ElasticSearchRetrieval:
     def query_search(
         self, query : str, topk : int
     ): 
-            
-        query = self.query_filter(query)
-
         # query 문장에 NER을 이어붙일지의 여부
         if DataTrainingArguments.add_ner:
             query = add_ner_func(query)
+        else:
+            query = self.query_filter(query)
 
         body = {
             "query": {
