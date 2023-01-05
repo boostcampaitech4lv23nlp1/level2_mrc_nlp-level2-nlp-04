@@ -33,22 +33,22 @@ def weighted_voting(predictions, weights, num_cands):
     predictions_df = predictions
     summation_df = {}
     
+    
     for col in range(len(predictions_df.columns)):
         summation_dict = {}
         summation_df[predictions_df.columns[col]] = None
-        
-        for row in range(0, 20 * num_cands): 
+
+        idx = 0
+        for row in range(0, (20 * num_cands)): 
             logit_dict = predictions_df.iloc[:, col][row]
 
             text = logit_dict['text']
             if row % 20 == 0:
-                try: 
-                    weight = int(weights.pop(0))
-                    # print(weight, row)
-                except:
-                    pass
+                weight = int(weights[idx])
+                idx +=1
+
             probability = logit_dict['probability'] * weight
-        
+
             try:
                 summation_dict[text] += probability
             except KeyError:
@@ -74,6 +74,7 @@ def main():
     cands.reset_index(inplace=True, drop=True)
 
     if weighted_voting:
+        print(args.weights.split(), num_cands)
         result = weighted_voting(cands, args.weights.split(), num_cands)
     else:
         result = soft_voting(cands, num_cands)
