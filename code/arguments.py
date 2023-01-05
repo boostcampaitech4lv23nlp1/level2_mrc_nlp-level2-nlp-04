@@ -104,6 +104,9 @@ class DataTrainingArguments:
     add_ner: bool = field(
         default=False, metadata={"help": "Whether put the NER result after the query"}
     )
+    query_filter: bool = field(
+        default=False, metadata={"help": "Whether to pre-process the query"}
+    )
 
 
 @dataclass

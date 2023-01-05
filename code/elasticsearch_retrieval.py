@@ -7,7 +7,6 @@ from datasets import Dataset
 from tqdm.auto import tqdm
 from elasticsearch_setting import *
 from utils_qa import add_ner_func
-from arguments import DataTrainingArguments
 from konlpy.tag import Mecab
 
 
@@ -19,26 +18,31 @@ def timer(name):
 
 class ElasticSearchRetrieval:
     def __init__(
-        self, index_name : str = "wiki-base"
+        self, data_args
     ) -> NoReturn:
         self.es = elasticsearch_setting()
-        self.index_name = index_name
+        self.index_name = data_args.index_name
+        self.query_filter_use = data_args.query_filter
+        self.add_ner = data_args.add_ner
+        
         # 인덱스 저장 확인 => 저장되어 있지 않을시 elasticsearch_setting.py로 저장 후 실행
         if self.es.indices.exists(index=self.index_name):
             print(f"Index {self.index_name} Exists")
         else:
             print("Need to save index")
-        self.mecab = Mecab()
 
     # 쿼리 결과 확인
     def query_search(
         self, query : str, topk : int
     ): 
-        # query 문장에 NER을 이어붙일지의 여부
-        if DataTrainingArguments.add_ner:
-            query = add_ner_func(query)
-        else:
+        # query 전처리 여부
+        if self.query_filter_use:
+            self.mecab = Mecab()
             query = self.query_filter(query)
+
+        # query 문장에 NER을 이어붙일지의 여부
+        if self.add_ner:
+            query = add_ner_func(query)
 
         body = {
             "query": {
@@ -63,10 +67,6 @@ class ElasticSearchRetrieval:
                 if morph[1] not in tags:
                     new_query += ''.join(morph[0])
             new_query += ' '
-        
-        new_query = new_query[:-1]
-        if new_query[-1] in ['되', '있', '하']:
-            new_query = new_query[:-1]
             
         return new_query.strip()
 

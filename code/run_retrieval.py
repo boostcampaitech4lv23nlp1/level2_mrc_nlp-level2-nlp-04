@@ -159,7 +159,7 @@ def run_elasticsearch_retrieval(
     context_path: str = "wikipedia_documents.json",
 ) -> DatasetDict:
 
-    retriever = ElasticSearchRetrieval(index_name=data_args.index_name)
+    retriever = ElasticSearchRetrieval(data_args=data_args)
 
     if data_args.use_faiss:
         retriever.build_faiss(num_clusters=data_args.num_clusters)
