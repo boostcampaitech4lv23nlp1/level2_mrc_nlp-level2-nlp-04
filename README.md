@@ -1,5 +1,3 @@
-# README.md
-
 [랩업리포트](https://www.notion.so/NLP04-ODQA-Wrap-up-Report-Public-06cff06e99c0431393ada242757420eb)
 
 ## ODQA
