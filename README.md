@@ -2,7 +2,7 @@
 
 ## ODQA
 
-![Untitled](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/fa1fb359-de95-4dac-b5a2-41c955beb82a/Untitled.png)
+![Untitled](https://user-images.githubusercontent.com/42907231/211742201-ae51bdaa-b5fd-44c5-b5cc-522fe2251342.png)
 
 ## 프로젝트 개요
 
@@ -12,8 +12,7 @@
 
 | 김해원 | 김혜빈 | 박준형 | 양봉석 | 이예령 |
 | --- | --- | --- | --- | --- |
-| 실험 세팅 (WandB) <br> ElasticSearch 구현 및 실험 | 데이터 EDA <br> 데이터 전처리 | 코드리뷰 <br> DPR 구현 및 실험 | PM <br> 
-Reader model 실험 | 실험 세팅 (huggingface) <br> 외부 데이터 탐색 및 활용 |
+| 실험 세팅 (WandB) <br> ElasticSearch 구현 및 실험 | 데이터 EDA <br> 데이터 전처리 | 코드리뷰 <br> DPR 구현 및 실험 | PM <br> Reader model 실험 | 실험 세팅 (huggingface) <br> 외부 데이터 탐색 및 활용 |
 
 ## 실험 내역
 
