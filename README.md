@@ -12,12 +12,8 @@
 
 | 김해원 | 김혜빈 | 박준형 | 양봉석 | 이예령 |
 | --- | --- | --- | --- | --- |
-| 실험 세팅 (WandB)
-ElasticSearch 구현 및 실험 | 데이터 EDA
-데이터 전처리 | 코드리뷰
-DPR 구현 및 실험 | PM
-Reader model 실험 | 실험 세팅 (huggingface)
-외부 데이터 탐색 및 활용 |
+| 실험 세팅 (WandB) <br> ElasticSearch 구현 및 실험 | 데이터 EDA <br> 데이터 전처리 | 코드리뷰 <br> DPR 구현 및 실험 | PM <br> 
+Reader model 실험 | 실험 세팅 (huggingface) <br> 외부 데이터 탐색 및 활용 |
 
 ## 실험 내역
 
